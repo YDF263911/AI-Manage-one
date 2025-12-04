@@ -1,0 +1,1172 @@
+<template>
+  <div class="text-extract-viewer">
+    <div class="viewer-header">
+      <el-page-header @back="goBack">
+        <template #breadcrumb>
+          <el-breadcrumb separator="/">
+            <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: '/contracts' }">合同列表</el-breadcrumb-item>
+            <el-breadcrumb-item :to="{ path: `/contracts/${contractId}` }">合同详情</el-breadcrumb-item>
+            <el-breadcrumb-item>合同内容提取</el-breadcrumb-item>
+          </el-breadcrumb>
+        </template>
+        <template #content>
+          <h2>合同内容智能提取</h2>
+          <p>AI智能解析合同文档内容</p>
+        </template>
+      </el-page-header>
+    </div>
+
+    <div v-loading="loading" class="viewer-content">
+      <!-- 文件信息 -->
+      <el-card class="file-info-card">
+        <template #header>
+          <span>文件信息</span>
+        </template>
+        
+        <div v-if="currentFile" class="file-details">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="文件名">
+              <el-icon><Document /></el-icon>
+              {{ currentFile.filename }}
+            </el-descriptions-item>
+            <el-descriptions-item label="文件类型">
+              <el-tag>{{ currentFile.fileType.toUpperCase() }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="文件大小">
+              {{ formatFileSize(currentFile.fileSize) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="上传时间">
+              {{ formatDate(currentFile.createdAt) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="提取状态">
+              <el-tag :type="extractionStatus.type">
+                {{ extractionStatus.text }}
+              </el-tag>
+            </el-descriptions-item>
+          </el-descriptions>
+        </div>
+      </el-card>
+
+      <!-- 操作按钮 -->
+      <div class="action-buttons">
+        <el-button 
+          type="primary" 
+          :icon="MagicStick" 
+          @click="extractText"
+          :loading="extracting"
+        >
+          {{ extractedText ? '重新提取' : '智能提取' }}
+        </el-button>
+        <el-button 
+          type="success" 
+          :icon="Download" 
+          @click="downloadText"
+          :disabled="!extractedText"
+        >
+          下载文本
+        </el-button>
+        <el-button 
+          type="info" 
+          :icon="Refresh" 
+          @click="refreshViewer"
+        >
+          刷新
+        </el-button>
+        <el-button 
+          type="warning" 
+          :icon="View" 
+          @click="viewOriginalFile"
+        >
+          查看原文件
+        </el-button>
+      </div>
+
+      <!-- 提取结果 -->
+      <el-card class="extraction-result-card">
+        <template #header>
+          <span>提取结果</span>
+          <span v-if="extractedText" class="text-count">
+            共 {{ extractedText.length }} 个字符
+          </span>
+        </template>
+        
+        <div v-if="extractedText" class="extracted-text">
+          <div class="text-controls">
+            <el-input
+              v-model="searchText"
+              placeholder="搜索内容..."
+              :prefix-icon="Search"
+              clearable
+              style="width: 300px; margin-right: 10px;"
+            />
+            <el-button-group>
+              <el-button @click="copyText" :icon="CopyDocument">
+                复制文本
+              </el-button>
+              <el-button @click="clearText" :icon="Delete">
+                清空
+              </el-button>
+            </el-button-group>
+          </div>
+          
+          <div class="text-content">
+            <pre ref="textContent" class="text-display">{{ highlightedText }}</pre>
+          </div>
+        </div>
+        
+        <div v-else-if="extractionError" class="extraction-error">
+          <el-alert
+            :title="extractionError"
+            type="error"
+            show-icon
+            :closable="false"
+          />
+          <div class="error-actions">
+            <el-button type="primary" @click="extractText">
+              重试提取
+            </el-button>
+            <el-button @click="viewOriginalFile">
+              查看原文件
+            </el-button>
+          </div>
+        </div>
+        
+        <div v-else class="no-extraction">
+          <el-empty>
+            <template #description>
+              <p>点击"智能提取"按钮开始分析合同内容</p>
+              <p class="hint-text">支持PDF、Word、TXT等格式的文本提取</p>
+            </template>
+          </el-empty>
+        </div>
+      </el-card>
+
+      <!-- 智能分析结果 -->
+      <el-card v-if="extractedText" class="analysis-card">
+        <template #header>
+          <span>智能分析</span>
+        </template>
+        
+        <div class="analysis-content">
+          <el-row :gutter="20">
+            <el-col :span="8">
+              <div class="analysis-item">
+                <div class="analysis-icon">
+                  <el-icon><Document /></el-icon>
+                </div>
+                <div class="analysis-info">
+                  <h3>{{ wordCount }}</h3>
+                  <p>总字数</p>
+                </div>
+              </div>
+            </el-col>
+            <el-col :span="8">
+              <div class="analysis-item">
+                <div class="analysis-icon">
+                  <el-icon><Collection /></el-icon>
+                </div>
+                <div class="analysis-info">
+                  <h3>{{ paragraphCount }}</h3>
+                  <p>段落数</p>
+                </div>
+              </div>
+            </el-col>
+            <el-col :span="8">
+              <div class="analysis-item">
+                <div class="analysis-icon">
+                  <el-icon><Timer /></el-icon>
+                </div>
+                <div class="analysis-info">
+                  <h3>{{ readingTime }}</h3>
+                  <p>阅读时间(分钟)</p>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
+          
+          <div class="key-info">
+            <h4>关键信息识别</h4>
+            <el-tag 
+              v-for="info in keyInformation" 
+              :key="info" 
+              type="info" 
+              size="small"
+              style="margin: 5px;"
+            >
+              {{ info }}
+            </el-tag>
+          </div>
+        </div>
+      </el-card>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted, computed, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { 
+  Document, Download, Refresh, View, 
+  Search, CopyDocument, Delete, Collection, Timer, MagicStick 
+} from '@element-plus/icons-vue';
+import { supabase } from "@/utils/supabase";
+
+const route = useRoute();
+const router = useRouter();
+
+const loading = ref(false);
+const extracting = ref(false);
+const currentFile = ref<any>(null);
+const extractedText = ref('');
+const extractionError = ref('');
+const searchText = ref('');
+
+const contractId = route.query.contract_id as string;
+
+// 计算属性
+const extractionStatus = computed(() => {
+  if (extracting.value) return { type: 'warning', text: '提取中...' };
+  if (extractionError.value) return { type: 'danger', text: '提取失败' };
+  if (extractedText.value) return { type: 'success', text: '已提取' };
+  return { type: 'info', text: '未提取' };
+});
+
+const wordCount = computed(() => {
+  if (!extractedText.value) return 0;
+  return extractedText.value.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ' ').split(/\s+/).filter(Boolean).length;
+});
+
+const paragraphCount = computed(() => {
+  if (!extractedText.value) return 0;
+  return extractedText.value.split(/\n\s*\n/).filter(p => p.trim()).length;
+});
+
+const readingTime = computed(() => {
+  const wordsPerMinute = 200; // 平均阅读速度
+  return Math.ceil(wordCount.value / wordsPerMinute);
+});
+
+const highlightedText = computed(() => {
+  if (!searchText.value || !extractedText.value) return extractedText.value;
+  
+  const regex = new RegExp(`(${searchText.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return extractedText.value.replace(regex, '<mark>$1</mark>');
+});
+
+const keyInformation = computed(() => {
+  if (!extractedText.value) return [];
+  
+  const keywords = [
+    '甲方', '乙方', '合同金额', '付款', '期限', '违约责任',
+    '保密', '知识产权', '争议解决', '签署日期'
+  ];
+  
+  return keywords.filter(keyword => 
+    extractedText.value.includes(keyword)
+  );
+});
+
+// 方法
+const goBack = () => {
+  router.back();
+};
+
+const loadContractDetail = async () => {
+  if (!contractId) {
+    ElMessage.error('缺少合同ID');
+    return;
+  }
+
+  loading.value = true;
+  try {
+    const { data: contract, error } = await supabase
+      .from('contracts')
+      .select('*')
+      .eq('id', contractId)
+      .single();
+
+    if (error) throw error;
+    if (!contract) throw new Error('合同不存在');
+
+    currentFile.value = {
+      filename: contract.filename,
+      fileType: contract.file_type,
+      fileSize: contract.file_size,
+      filePath: contract.file_path,
+      createdAt: contract.created_at,
+      updatedAt: contract.updated_at
+    };
+    
+  } catch (error: any) {
+    console.error('加载合同详情失败:', error);
+    ElMessage.error(error.message || '加载合同详情失败');
+  } finally {
+    loading.value = false;
+  }
+};
+
+const extractText = async () => {
+  if (!contractId) {
+    ElMessage.error('缺少合同ID');
+    return;
+  }
+
+  extracting.value = true;
+  extractionError.value = '';
+  
+  try {
+    ElMessage.info('正在获取AI智能分析结果...');
+    
+    // 1. 优先检查是否有AI分析结果
+    const { data: analysisData, error: analysisError } = await supabase
+      .from('contract_analysis')
+      .select('*')
+      .eq('contract_id', contractId)
+      .single();
+
+    if (analysisError && analysisError.code !== 'PGRST116') {
+      // PGRST116 表示记录不存在，这是正常情况
+      throw analysisError;
+    }
+
+    if (analysisData && analysisData.analysis_result) {
+      // 使用AI分析结果的结构化数据
+      const analysisResult = analysisData.analysis_result;
+      
+      // 构建智能提取的文本内容
+      extractedText.value = buildExtractedText(analysisResult);
+      
+      ElMessage.success('AI智能分析结果提取完成');
+    } else {
+      // 如果没有AI分析结果，使用传统文本提取
+      ElMessage.info('AI分析结果未就绪，使用传统文本提取...');
+      
+      if (!currentFile.value?.filePath) {
+        throw new Error('文件路径不存在');
+      }
+      
+      // 调用后端API进行文件内容提取
+      const response = await fetch(`http://localhost:5001/api/extract/text/${contractId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
+        },
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        extractedText.value = result.data.extractedText;
+        ElMessage.success('合同内容提取完成');
+      } else {
+        throw new Error(result.message || '提取失败');
+      }
+    }
+    
+  } catch (error: any) {
+    console.error('提取失败:', error);
+    extractionError.value = error.message || '提取失败，请稍后重试';
+    
+    // 如果后端API调用失败，使用备用方法
+    if (error.message.includes('网络') || error.message.includes('连接') || error.message.includes('HTTP')) {
+      ElMessage.warning('网络连接异常，尝试使用前端提取...');
+      await extractWithFallbackMethod();
+    } else {
+      ElMessage.error('提取失败');
+    }
+  } finally {
+    extracting.value = false;
+  }
+};
+
+// 构建基于AI分析结果的智能提取文本
+const buildExtractedText = (analysisResult: any) => {
+  let extractedText = '';
+  
+  // 1. 添加总体分析摘要
+  if (analysisResult.summary) {
+    extractedText += `=== 合同分析摘要 ===\n${analysisResult.summary}\n\n`;
+  }
+  
+  // 2. 添加风险等级信息
+  if (analysisResult.risk_level) {
+    extractedText += `风险等级: ${analysisResult.risk_level}\n`;
+  }
+  if (analysisResult.risk_score) {
+    extractedText += `风险评分: ${analysisResult.risk_score}\n\n`;
+  }
+  
+  // 3. 添加主要风险点
+  if (analysisResult.major_risks && analysisResult.major_risks.length > 0) {
+    extractedText += `=== 主要风险点 (${analysisResult.major_risks.length}个) ===\n`;
+    analysisResult.major_risks.forEach((risk: any, index: number) => {
+      extractedText += `${index + 1}. [${risk.severity || '中等'}] ${risk.description || '风险点'}\n`;
+      if (risk.suggestion) {
+        extractedText += `   建议: ${risk.suggestion}\n`;
+      }
+      extractedText += `\n`;
+    });
+  }
+  
+  // 4. 添加关键条款信息
+  if (analysisResult.key_terms) {
+    extractedText += `=== 关键条款提取 ===\n`;
+    Object.entries(analysisResult.key_terms).forEach(([key, value]) => {
+      const clauseName = getClauseName(key);
+      extractedText += `${clauseName}: ${value}\n`;
+    });
+    extractedText += `\n`;
+  }
+  
+  // 5. 添加缺失条款
+  if (analysisResult.missing_clauses && analysisResult.missing_clauses.length > 0) {
+    extractedText += `=== 建议补充的条款 (${analysisResult.missing_clauses.length}个) ===\n`;
+    analysisResult.missing_clauses.forEach((clause: string, index: number) => {
+      extractedText += `${index + 1}. ${clause}\n`;
+    });
+    extractedText += `\n`;
+  }
+  
+  // 6. 添加合规性问题
+  if (analysisResult.compliance_issues && analysisResult.compliance_issues.length > 0) {
+    extractedText += `=== 合规性问题 (${analysisResult.compliance_issues.length}个) ===\n`;
+    analysisResult.compliance_issues.forEach((issue: any, index: number) => {
+      extractedText += `${index + 1}. ${issue.issue || '合规问题'}\n`;
+      if (issue.suggestion) {
+        extractedText += `   建议: ${issue.suggestion}\n`;
+      }
+      extractedText += `\n`;
+    });
+  }
+  
+  return extractedText;
+};
+
+// 条款名称映射
+const getClauseName = (key: string) => {
+  const clauseMap: { [key: string]: string } = {
+    parties: '合同主体',
+    amount: '合同金额', 
+    duration: '合同期限',
+    payment_terms: '付款条款',
+    termination: '终止条款',
+    effective_date: '生效日期',
+    expiration_date: '到期日期',
+    sign_date: '签署日期'
+  };
+  return clauseMap[key] || key;
+};
+
+// 备用方法：当后端API不可用时使用前端提取
+const extractWithFallbackMethod = async () => {
+  try {
+    // 首先尝试从Supabase存储中下载文件
+    const { data, error } = await supabase.storage
+      .from('contracts')
+      .download(currentFile.value.filePath);
+
+    if (error) throw new Error(`文件下载失败: ${error.message}`);
+    
+    // 根据文件类型处理
+    const fileType = currentFile.value.fileType.toLowerCase();
+    
+    if (fileType.endsWith('.pdf')) {
+      await extractPdfTextWithFallback(data);
+    } else if (fileType.endsWith('.txt') || fileType.endsWith('.md')) {
+      await extractTextFile(data);
+    } else if (fileType.endsWith('.doc') || fileType.endsWith('.docx')) {
+      await extractWordDocument(data);
+    } else {
+      // 尝试从二进制数据中提取文本
+      await extractFromBinary(data);
+    }
+    
+    ElMessage.success('合同内容提取完成（备用方法）');
+  } catch (error: any) {
+    console.error('备用提取失败:', error);
+    extractionError.value = error.message || '提取失败，请检查网络连接或联系管理员';
+    ElMessage.error('备用提取失败');
+  }
+};
+
+// 改进的PDF文本提取方法，包含多重备用方案
+const extractPdfTextWithFallback = async (pdfBlob: Blob) => {
+  console.log('开始提取PDF文本，文件大小:', pdfBlob.size);
+  
+  // 方法1: 使用PDF.js
+  try {
+    console.log('尝试方法1: 使用PDF.js库');
+    const text = await extractWithPdfJs(pdfBlob);
+    if (text && text.trim().length > 100) {
+      extractedText.value = text;
+      console.log('PDF.js提取成功，文本长度:', text.length);
+      return;
+    }
+  } catch (error) {
+    console.warn('PDF.js提取失败:', error);
+  }
+  
+  // 方法2: 使用简单的二进制提取
+  try {
+    console.log('尝试方法2: 使用简单二进制提取');
+    const text = await extractPdfTextSimple(pdfBlob);
+    if (text && text.trim().length > 50) {
+      extractedText.value = text;
+      console.log('简单二进制提取成功，文本长度:', text.length);
+      return;
+    }
+  } catch (error) {
+    console.warn('简单二进制提取失败:', error);
+  }
+  
+  // 方法3: 使用文本解码器
+  try {
+    console.log('尝试方法3: 使用文本解码器');
+    const text = await extractWithTextDecoder(pdfBlob);
+    if (text && text.trim().length > 0) {
+      extractedText.value = text;
+      console.log('文本解码器提取成功，文本长度:', text.length);
+      return;
+    }
+  } catch (error) {
+    console.warn('文本解码器提取失败:', error);
+  }
+  
+  // 所有方法都失败，显示友好的错误信息
+  throw new Error('无法从PDF文件中提取文本内容。该文件可能包含扫描图像或使用特殊编码。');
+};
+
+// 使用PDF.js提取文本（修复版本）
+const extractWithPdfJs = async (pdfBlob: Blob): Promise<string> => {
+  try {
+    console.log('开始使用PDF.js提取文本...');
+    
+    // 检查PDF.js是否可用
+    if (typeof window === 'undefined') {
+      throw new Error('PDF.js只能在浏览器环境中使用');
+    }
+    
+    // 动态导入PDF.js库
+    const pdfjsLib = await import('pdfjs-dist');
+    
+    // 设置worker路径 - 使用本地安装的版本
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+    
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+    
+    // 检查文件大小
+    if (arrayBuffer.byteLength === 0) {
+      throw new Error('PDF文件为空');
+    }
+    
+    console.log('PDF文件大小:', arrayBuffer.byteLength, '字节');
+    
+    // 加载PDF文档，使用更简单的配置
+    const loadingTask = pdfjsLib.getDocument({
+      data: arrayBuffer,
+      // 禁用复杂的字体处理，简化配置
+      disableFontFace: false,
+      verbosity: 0 // 减少日志输出
+    });
+    
+    const pdf = await loadingTask.promise;
+    const numPages = pdf.numPages;
+    
+    console.log(`PDF文档共 ${numPages} 页`);
+    
+    if (numPages === 0) {
+      throw new Error('PDF文档没有页面');
+    }
+    
+    let fullText = '';
+    let successPageCount = 0;
+    
+    // 逐页提取文本
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        const textContent = await page.getTextContent();
+        
+        // 提取文本内容
+        const pageText = textContent.items
+          .map((item: any) => {
+            // 处理文本提取，确保中文字符正确处理
+            return item.str || '';
+          })
+          .join('')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        if (pageText.length > 0) {
+          fullText += pageText + '\n\n';
+          successPageCount++;
+        }
+        
+        console.log(`第 ${pageNum} 页提取文本长度:`, pageText.length);
+        
+        // 释放页面资源
+        page.cleanup();
+      } catch (pageError) {
+        console.warn(`第 ${pageNum} 页提取失败:`, pageError);
+        // 继续处理下一页
+        continue;
+      }
+    }
+    
+    // 释放PDF文档资源
+    pdf.destroy();
+    
+    const result = fullText.trim();
+    console.log(`PDF.js提取完成，成功提取 ${successPageCount}/${numPages} 页，总文本长度:`, result.length);
+    
+    if (result.length === 0) {
+      throw new Error('PDF.js未能提取到任何文本内容');
+    }
+    
+    return result;
+  } catch (error) {
+    console.error('PDF.js提取失败:', error);
+    throw new Error(`PDF.js提取失败: ${error.message}`);
+  }
+};
+
+// 使用文本解码器提取
+const extractWithTextDecoder = async (blob: Blob): Promise<string> => {
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    
+    // 尝试不同的编码
+    const encodings = ['utf-8', 'gbk', 'gb2312', 'big5', 'latin1'];
+    
+    for (const encoding of encodings) {
+      try {
+        const decoder = new TextDecoder(encoding);
+        const text = decoder.decode(arrayBuffer);
+        
+        // 检查是否包含可读文本
+        const readableText = text
+          .replace(/[^\x20-\x7E\n\r\t\u4e00-\u9fa5]/g, '')
+          .trim();
+        
+        if (readableText.length > 100) {
+          return readableText;
+        }
+      } catch (e) {
+        // 继续尝试下一个编码
+        continue;
+      }
+    }
+    
+    throw new Error('所有编码尝试都失败');
+  } catch (error) {
+    throw error;
+  }
+};
+
+
+
+// 更可靠的PDF文本提取方法 - 专门处理二进制数据并确保可读性
+const extractPdfTextSimple = async (pdfBlob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      try {
+        const arrayBuffer = event.target?.result as ArrayBuffer;
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        console.log('PDF文件大小:', uint8Array.length, '字节');
+        
+        // 方法1: 尝试从PDF二进制数据中直接提取文本内容
+        // PDF文件格式：查找文本对象 (BT ... ET) 之间的内容
+        let text = '';
+        
+        // 将二进制数据转换为字符串以便搜索
+        const binaryString = Array.from(uint8Array).map(byte => 
+          String.fromCharCode(byte)).join('');
+        
+        // 查找PDF中的文本对象
+        const textObjectRegex = /BT\s*([\s\S]*?)\s*ET/g;
+        let match;
+        
+        while ((match = textObjectRegex.exec(binaryString)) !== null) {
+          const textContent = match[1];
+          
+          // 提取文本操作符 Tj, TJ, " 等
+          const textOperators = [
+            /Tj\s*\(([^)]+)\)/g,    // (text) Tj
+            /TJ\s*\[([^\]]+)\]/g,   // [text] TJ
+            /"\s*\(([^)]+)\)/g,    // (text) "
+            /'\s*\(([^)]+)\)/g     // (text) '
+          ];
+          
+          for (const regex of textOperators) {
+            let textMatch;
+            while ((textMatch = regex.exec(textContent)) !== null) {
+              const extractedText = textMatch[1];
+              // 清理转义字符
+              const cleanedText = extractedText
+                .replace(/\\([\\()nrtbf])/g, (match, escape) => {
+                  switch (escape) {
+                    case 'n': return '\n';
+                    case 'r': return '\r';
+                    case 't': return '\t';
+                    case 'b': return '\b';
+                    case 'f': return '\f';
+                    default: return escape;
+                  }
+                })
+                .replace(/\\\n/g, '') // 移除行继续符
+                .trim();
+              
+              if (cleanedText.length > 0) {
+                text += cleanedText + ' ';
+              }
+            }
+          }
+        }
+        
+        // 如果通过PDF对象提取失败，尝试简单的二进制提取
+        if (text.trim().length < 50) {
+          console.log('PDF对象提取失败，尝试二进制提取');
+          text = '';
+          
+          // 直接提取ASCII和UTF-8可打印字符
+          for (let i = 0; i < uint8Array.length; i++) {
+            const byte = uint8Array[i];
+            
+            // ASCII可打印字符 (32-126)
+            if (byte >= 32 && byte <= 126) {
+              text += String.fromCharCode(byte);
+            }
+            // 中文UTF-8编码 (3字节)
+            else if (byte >= 0xE0 && byte <= 0xEF && i + 2 < uint8Array.length) {
+              const nextByte1 = uint8Array[i + 1];
+              const nextByte2 = uint8Array[i + 2];
+              
+              if (nextByte1 >= 0x80 && nextByte1 <= 0xBF && 
+                  nextByte2 >= 0x80 && nextByte2 <= 0xBF) {
+                try {
+                  const decoder = new TextDecoder('utf-8');
+                  const chineseChar = decoder.decode(new Uint8Array([byte, nextByte1, nextByte2]));
+                  text += chineseChar;
+                  i += 2; // 跳过后续两个字节
+                } catch (e) {
+                  // 忽略无效编码
+                }
+              }
+            }
+            // 换行和空格处理
+            else if (byte === 10 || byte === 13) {
+              text += '\n';
+            } else if (byte === 9 || byte === 32) {
+              text += ' ';
+            }
+          }
+        }
+        
+        // 清理和格式化文本
+        const cleanText = text
+          .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '') // 移除控制字符
+          .replace(/\s+/g, ' ') // 压缩多余空格
+          .replace(/\n{3,}/g, '\n\n') // 整理换行
+          .replace(/^\s+|\s+$/g, '') // 去除首尾空白
+          .trim();
+        
+        console.log('二进制提取结果，长度:', cleanText.length);
+        
+        if (cleanText.length < 10) {
+          reject(new Error('PDF文件中未找到可读文本内容'));
+          return;
+        }
+        
+        // 检查文本质量
+        if (!isTextQualityGood(cleanText)) {
+          reject(new Error('提取的文本质量较低，可能包含大量乱码'));
+          return;
+        }
+        
+        resolve(cleanText);
+        
+      } catch (error: any) {
+        console.error('PDF简单提取错误:', error);
+        reject(error);
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('文件读取失败'));
+    };
+    
+    reader.readAsArrayBuffer(pdfBlob);
+  });
+};
+
+// 辅助函数：从解码文本中提取可读内容
+const extractReadableText = (text: string): string => {
+  // 提取包含中文、英文、数字、空格和基本标点的内容
+  const readablePattern = /[\u4e00-\u9fa5a-zA-Z0-9\s，。！？；："'《》【】（）“”‘’.,!?;:()\[\]{}]/g;
+  const matches = text.match(readablePattern) || [];
+  
+  // 将匹配的内容连接起来
+  let result = matches.join('');
+  
+  // 清理文本格式
+  result = result
+    .replace(/\s+/g, ' ') // 压缩多余空格
+    .replace(/\n{3,}/g, '\n\n') // 整理换行
+    .replace(/^\s+|\s+$/g, '') // 去除首尾空白
+    .trim();
+  
+  return result;
+};
+
+// 辅助函数：检查文本质量
+const isTextQualityGood = (text: string): boolean => {
+  if (text.length < 10) return false;
+  
+  const chineseCount = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+  const englishCount = (text.match(/[a-zA-Z]/g) || []).length;
+  const digitCount = (text.match(/[0-9]/g) || []).length;
+  const spaceCount = (text.match(/\s/g) || []).length;
+  
+  const totalMeaningfulChars = chineseCount + englishCount + digitCount + spaceCount;
+  const qualityRatio = totalMeaningfulChars / text.length;
+  
+  console.log('文本质量检查 - 中文:', chineseCount, '英文:', englishCount, 
+              '数字:', digitCount, '空格:', spaceCount, '质量比例:', qualityRatio.toFixed(2));
+  
+  // 如果有足够的中文或英文内容，或者整体质量比例较高
+  return (chineseCount > 10 || englishCount > 20) && qualityRatio > 0.4;
+};
+
+const extractTextFile = async (textBlob: Blob) => {
+  try {
+    const text = await textBlob.text();
+    if (text.trim().length === 0) {
+      throw new Error('文本文件内容为空');
+    }
+    extractedText.value = text;
+  } catch (error: any) {
+    throw new Error(`文本文件读取失败: ${error.message}`);
+  }
+};
+
+const extractWordDocument = async (wordBlob: Blob) => {
+  try {
+    // 对于Word文档，我们无法在前端直接解析，需要调用后端API
+    const formData = new FormData();
+    formData.append('file', wordBlob, currentFile.value.filename);
+    
+    // 这里应该调用后端API来处理Word文档
+    // 由于前端无法直接解析Word文档，我们使用备用的二进制提取方法
+    await extractFromBinary(wordBlob);
+  } catch (error: any) {
+    throw new Error(`Word文档处理失败: ${error.message}`);
+  }
+};
+
+const extractFromBinary = async (blob: Blob) => {
+  try {
+    // 尝试从二进制数据中提取文本
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // 尝试将二进制数据转换为文本
+    let text = '';
+    
+    // 检测是否为文本文件（UTF-8编码）
+    const decoder = new TextDecoder('utf-8');
+    text = decoder.decode(uint8Array);
+    
+    // 检查文本是否包含可读内容
+    const readableText = text.replace(/[^\x20-\x7E\n\r\t]/g, '').trim();
+    
+    if (readableText.length > 0) {
+      extractedText.value = readableText;
+    } else {
+      // 如果无法提取文本，显示提示信息
+      extractedText.value = `
+文件格式：${currentFile.value.fileType}
+文件大小：${formatFileSize(currentFile.value.fileSize)}
+
+该文件格式暂不支持自动文本提取，建议使用支持的文件格式（如PDF、TXT等）。
+
+如需查看文件内容，请点击"查看原文件"按钮。
+
+支持的文件格式：
+- PDF文档 (.pdf)
+- 文本文件 (.txt, .md)
+- Word文档 (.doc, .docx)
+      `.trim();
+    }
+  } catch (error: any) {
+    throw new Error(`文件内容提取失败: ${error.message}`);
+  }
+};
+
+const downloadText = async () => {
+  if (!extractedText.value) {
+    ElMessage.warning('没有可下载的文本内容');
+    return;
+  }
+
+  try {
+    const blob = new Blob([extractedText.value], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${currentFile.value.filename.replace(/\.[^/.]+$/, '')}_提取内容.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    ElMessage.success('文本下载成功');
+  } catch (error: any) {
+    ElMessage.error('下载失败');
+  }
+};
+
+const copyText = async () => {
+  if (!extractedText.value) {
+    ElMessage.warning('没有可复制的文本内容');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(extractedText.value);
+    ElMessage.success('文本已复制到剪贴板');
+  } catch (error) {
+    // 兼容性处理
+    const textArea = document.createElement('textarea');
+    textArea.value = extractedText.value;
+    document.body.appendChild(textArea);
+    textArea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textArea);
+    ElMessage.success('文本已复制到剪贴板');
+  }
+};
+
+const clearText = () => {
+  ElMessageBox.confirm('确定要清空提取的文本内容吗？', '确认清空', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning',
+  }).then(() => {
+    extractedText.value = '';
+    searchText.value = '';
+    ElMessage.success('文本内容已清空');
+  });
+};
+
+const refreshViewer = () => {
+  extractedText.value = '';
+  extractionError.value = '';
+  searchText.value = '';
+  loadContractDetail();
+};
+
+const viewOriginalFile = () => {
+  router.push({
+    path: '/contracts/file-viewer',
+    query: { contract_id: contractId }
+  });
+};
+
+const formatFileSize = (bytes: number): string => {
+  if (!bytes) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+const formatDate = (date: string | Date): string => {
+  if (!date) return '未知';
+  return new Date(date).toLocaleString('zh-CN');
+};
+
+// 生命周期
+onMounted(() => {
+  loadContractDetail();
+});
+
+// 监听搜索文本变化
+watch(searchText, () => {
+  if (searchText.value && extractedText.value) {
+    // 高亮搜索文本
+    const textContent = document.querySelector('.text-display');
+    if (textContent) {
+      textContent.innerHTML = highlightedText.value;
+    }
+  }
+});
+</script>
+
+<style scoped>
+.text-extract-viewer {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.viewer-header {
+  margin-bottom: 30px;
+}
+
+.file-info-card {
+  margin-bottom: 20px;
+}
+
+.file-details {
+  padding: 10px 0;
+}
+
+.action-buttons {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.extraction-result-card {
+  margin-bottom: 20px;
+}
+
+.text-count {
+  float: right;
+  color: #909399;
+  font-size: 14px;
+}
+
+.extracted-text {
+  min-height: 400px;
+}
+
+.text-controls {
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.text-content {
+  max-height: 500px;
+  overflow-y: auto;
+  background: #f8f9fa;
+  border-radius: 4px;
+  padding: 15px;
+  border: 1px solid #e4e7ed;
+}
+
+.text-display {
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+  font-size: 14px;
+  color: #333;
+}
+
+.text-display mark {
+  background-color: #ffeb3b;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.extraction-error,
+.no-extraction {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.error-actions {
+  margin-top: 20px;
+}
+
+.hint-text {
+  color: #909399;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.analysis-card {
+  margin-bottom: 20px;
+}
+
+.analysis-content {
+  padding: 10px 0;
+}
+
+.analysis-item {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
+
+.analysis-icon {
+  margin-right: 15px;
+  font-size: 24px;
+  color: #409eff;
+}
+
+.analysis-info h3 {
+  margin: 0;
+  font-size: 24px;
+  color: #303133;
+}
+
+.analysis-info p {
+  margin: 5px 0 0 0;
+  color: #909399;
+  font-size: 14px;
+}
+
+.key-info {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #e4e7ed;
+}
+
+.key-info h4 {
+  margin-bottom: 10px;
+  color: #303133;
+}
+
+@media (max-width: 768px) {
+  .text-extract-viewer {
+    padding: 10px;
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .text-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .text-content {
+    max-height: 300px;
+  }
+}
+</style>
