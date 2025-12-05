@@ -48,6 +48,9 @@ export interface Contract {
   analysis_started_at?: string;
   analysis_completed_at?: string;
   confidence_score?: number;
+  extraction_status?: "pending" | "processing" | "completed" | "failed";
+  extraction_completed_at?: string;
+  extraction_error?: string;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +66,7 @@ export interface ContractAnalysis {
   risk_summary?: string;
   compliance_status: boolean;
   compliance_issues?: any;
+  completed_at?: string;
   created_at: string;
   updated_at: string;
 }
