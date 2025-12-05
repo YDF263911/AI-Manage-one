@@ -122,21 +122,31 @@ const fileContent = ref('');
 // 计算属性
 const canPreview = computed(() => {
   if (!currentFile.value) return false;
+  const fileName = currentFile.value.filename.toLowerCase();
   const fileType = currentFile.value.fileType.toLowerCase();
-  return fileType.endsWith('.pdf') || fileType.endsWith('.txt') || 
+  return fileName.endsWith('.pdf') || fileName.endsWith('.txt') || 
+         fileName.endsWith('.md') || fileName.endsWith('.json') ||
+         fileName.endsWith('.xml') || fileName.endsWith('.html') ||
+         fileType.endsWith('.pdf') || fileType.endsWith('.txt') || 
          fileType.endsWith('.md') || fileType.endsWith('.json') ||
          fileType.endsWith('.xml') || fileType.endsWith('.html');
 });
 
 const isPdfFile = computed(() => {
-  return currentFile.value?.fileType.toLowerCase().endsWith('.pdf');
+  const fileType = currentFile.value?.fileType.toLowerCase();
+  const fileName = currentFile.value?.filename.toLowerCase();
+  return fileType?.endsWith('.pdf') || fileName?.endsWith('.pdf');
 });
 
 const isTextFile = computed(() => {
   const fileType = currentFile.value?.fileType.toLowerCase();
+  const fileName = currentFile.value?.filename.toLowerCase();
   return fileType?.endsWith('.txt') || fileType?.endsWith('.md') || 
          fileType?.endsWith('.json') || fileType?.endsWith('.xml') ||
-         fileType?.endsWith('.html');
+         fileType?.endsWith('.html') ||
+         fileName?.endsWith('.txt') || fileName?.endsWith('.md') || 
+         fileName?.endsWith('.json') || fileName?.endsWith('.xml') ||
+         fileName?.endsWith('.html');
 });
 
 const pdfViewerUrl = computed(() => {

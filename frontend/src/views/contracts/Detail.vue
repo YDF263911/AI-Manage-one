@@ -30,18 +30,21 @@
       </el-page-header>
 
       <div class="header-actions">
-        <el-button-group>
-          <el-button type="primary" :icon="Download" @click="downloadFile"
-            >下载合同</el-button
-          >
-          <el-button type="success" :icon="Document" @click="viewFile"
-            >查看文件</el-button
-          >
-          <el-button :icon="Edit" @click="editContract">编辑</el-button>
-          <el-button :icon="Delete" type="danger" @click="deleteContract"
-            >删除</el-button
-          >
-        </el-button-group>
+          <el-button-group>
+            <el-button type="primary" :icon="Download" @click="downloadFile"
+              >下载合同</el-button
+            >
+            <el-button type="success" :icon="Document" @click="viewFile"
+              >查看文件</el-button
+            >
+            <el-button type="warning" :icon="View" @click="viewContract">
+              PDF预览
+            </el-button>
+            <el-button :icon="Edit" @click="editContract">编辑</el-button>
+            <el-button :icon="Delete" type="danger" @click="deleteContract"
+              >删除</el-button
+            >
+          </el-button-group>
       </div>
     </div>
 
@@ -562,11 +565,11 @@ const viewFile = () => {
   
   if (contractDetail.value.filename) {
     // 使用数据库中的filename字段
-    fileName = contractDetail.value.filename.toLowerCase();
+    fileName = contractDetail.value.filename;
   } else if (contractDetail.value.file_path) {
     // 从file_path中提取文件名作为后备方案
     const pathParts = contractDetail.value.file_path.split(/[\\/]/);
-    fileName = pathParts[pathParts.length - 1].toLowerCase();
+    fileName = pathParts[pathParts.length - 1];
     console.log('从file_path中提取的文件名:', fileName);
   }
   
@@ -578,24 +581,40 @@ const viewFile = () => {
   
   console.log('检测到文件名:', fileName, '文件路径:', contractDetail.value.file_path);
   
+  // 获取文件扩展名
+  const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+  
   // 智能判断：优先使用文本提取功能，支持更多格式
-  const supportedFormats = ['.pdf', '.doc', '.docx', '.txt', '.md'];
-  const canExtract = supportedFormats.some(format => fileName.endsWith(format));
+  const extractableFormats = ['.pdf', '.doc', '.docx', '.txt', '.md'];
+  const canExtract = extractableFormats.some(format => fileName.endsWith(format));
   
   if (canExtract) {
-    // 跳转到智能文本提取页面
+    // 跳转到智能文本提取页面，支持文本预览和内容提取
     router.push({
       path: '/contracts/text-extract',
-      query: { contract_id: contractDetail.value.id }
+      query: { 
+        contract_id: contractDetail.value.id,
+        filename: fileName
+      }
     });
-  } else if (fileName.endsWith('.pdf')) {
-    // PDF文件：使用浏览器内置PDF预览
-    viewContract();
+  } else if (fileExtension === '.pdf') {
+    // PDF文件：使用专门的PDF预览页面
+    router.push({
+      path: '/contracts-preview',
+      query: { 
+        contract_id: contractDetail.value.id,
+        fileUrl: contractDetail.value.file_path,
+        fileName: fileName
+      }
+    });
   } else {
-    // 其他格式：跳转到文件内容查看页面
+    // 其他格式：跳转到文件查看器页面
     router.push({
       path: '/contracts/file-viewer',
-      query: { contract_id: contractDetail.value.id }
+      query: { 
+        contract_id: contractDetail.value.id,
+        filename: fileName
+      }
     });
   }
 };
