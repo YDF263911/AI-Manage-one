@@ -197,8 +197,37 @@ const handleRegister = async () => {
     );
 
     if (result.success) {
-      ElMessage.success("注册成功！请前往邮箱验证您的账户");
-      router.push("/login");
+      if (result.requiresEmailVerification) {
+        ElMessage({
+          message: "注册成功！请前往邮箱验证您的账户后再登录",
+          type: "warning",
+          duration: 3000,
+          showClose: true
+        });
+        router.push("/login");
+      } else if (result.isFirstTime) {
+        // 首次注册成功，自动登录并跳转
+        ElMessage({
+          message: "注册成功！欢迎加入AI合同管理系统 🎉",
+          type: "success",
+          duration: 2000,
+          showClose: true
+        });
+        
+        // 短暂延迟，让用户看到成功提示
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 800);
+      } else {
+        // 注册成功但需要手动登录
+        ElMessage({
+          message: "注册成功！请登录以开始使用",
+          type: "info",
+          duration: 2000,
+          showClose: true
+        });
+        router.push("/login");
+      }
     } else {
       ElMessage.error(result.error || "注册失败");
     }

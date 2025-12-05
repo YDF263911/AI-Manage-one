@@ -98,10 +98,26 @@ const handleLogin = async () => {
     const result = await authStore.signIn(loginForm.email, loginForm.password);
 
     if (result.success) {
-      ElMessage.success("登录成功");
+      ElMessage({
+        message: "登录成功！欢迎回来 👋",
+        type: "success",
+        duration: 1500
+      });
+      
+      // 检查是否为首次登录
+      const isFirstTime = localStorage.getItem(`first_login_${authStore.user?.id}`);
+      if (isFirstTime === "pending") {
+        // 首次登录，清除pending状态
+        localStorage.setItem(`first_login_${authStore.user?.id}`, "completed");
+      }
+      
       router.push("/dashboard");
     } else {
-      ElMessage.error(result.error || "登录失败");
+      ElMessage({
+        message: result.error || "登录失败，请检查邮箱和密码",
+        type: "error",
+        duration: 3000
+      });
     }
   } catch (error) {
     // 验证失败

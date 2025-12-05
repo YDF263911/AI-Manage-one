@@ -28,7 +28,25 @@ export const useAuthStore = defineStore("auth", () => {
       if (session?.user && session?.access_token) {
         user.value = session.user;
         localStorage.setItem("token", session.access_token);
-        await loadUserProfile();
+        
+        // 检查是否为首次登录
+        const isFirstTime = localStorage.getItem(`first_login_${user.value.id}`);
+        
+        if (isFirstTime === "completed") {
+          // 非首次登录，自动恢复状态
+          await loadUserProfile();
+          console.log("自动登录：用户历史记录存在");
+        } else if (isFirstTime === "pending") {
+          // 首次注册完成，自动登录
+          await loadUserProfile();
+          localStorage.setItem(`first_login_${user.value.id}`, "completed");
+          console.log("用户首次注册并自动登录成功");
+        } else {
+          // 全新用户，需要手动登录
+          localStorage.setItem(`first_login_${user.value.id}`, "pending");
+          console.log("新用户：需要手动登录确认");
+          return;
+        }
       }
     },
     (error) => {
@@ -149,8 +167,11 @@ export const useAuthStore = defineStore("auth", () => {
       // 响应拦截器已经处理了错误情况，这里假设result是成功响应的数据
       const apiUser = result;
 
-      // 注册成功后，尝试自动登录
+      // 注册成功后，标记为首次登录并自动登录
       if (apiUser) {
+        // 标记用户ID为首次注册
+        localStorage.setItem(`first_login_${apiUser.id}`, "pending");
+        
         try {
           const { data: authData, error: authError } =
             await supabase.auth.signInWithPassword({
@@ -161,18 +182,24 @@ export const useAuthStore = defineStore("auth", () => {
           if (authError) {
             // 如果登录失败，可能是需要邮箱验证
             return {
-            success: true,
-            user: apiUser,
-            requiresEmailVerification: true,
-          };
-        }
+              success: true,
+              user: apiUser,
+              requiresEmailVerification: true,
+              isFirstTime: true,
+            };
+          }
 
           if (authData.user) {
             user.value = authData.user;
             if (authData.session?.access_token) {
               localStorage.setItem("token", authData.session.access_token);
             }
+            
+            // 首次登录标记完成
+            localStorage.setItem(`first_login_${apiUser.id}`, "completed");
+            
             await loadUserProfile();
+            console.log("用户首次注册并自动登录成功");
           }
         } catch (loginError) {
           // 登录失败不影响注册成功的结果
@@ -180,6 +207,7 @@ export const useAuthStore = defineStore("auth", () => {
             success: true,
             user: apiUser,
             requiresEmailVerification: true,
+            isFirstTime: true,
           };
         }
       }
