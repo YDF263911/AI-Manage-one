@@ -115,6 +115,7 @@ import {
   Download,
   Loading,
 } from "@element-plus/icons-vue";
+import { supabase } from "@/utils/supabase";
 
 // PDF.js 导入
 import * as pdfjsLib from "pdfjs-dist";
@@ -157,7 +158,7 @@ const buildFileUrl = (baseUrl: string): string[] => {
 
   // 尝试添加API基础URL前缀（如果环境变量存在）
   const apiBaseUrl =
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
 
   // 规范化URL - 移除重复的斜杠
   const normalizeUrl = (url: string): string => {
@@ -192,8 +193,23 @@ const buildFileUrl = (baseUrl: string): string[] => {
       urls.push(`${apiBaseUrl}/${cleanBaseUrl}`);
     }
 
+    // 检查是否是Supabase存储路径
+    if (cleanBaseUrl.startsWith("contracts/")) {
+      // Supabase存储路径，生成公共URL
+      try {
+        const { data } = supabase.storage
+          .from("contracts")
+          .getPublicUrl(cleanBaseUrl);
+        if (data.publicUrl) {
+          urls.push(data.publicUrl);
+        }
+      } catch (error) {
+        console.warn('Supabase URL生成失败:', error);
+      }
+    }
+    
     // 4. 可能的本地开发路径
-    urls.push(`http://localhost:3001/${cleanBaseUrl}`);
+    urls.push(`http://localhost:5001/${cleanBaseUrl}`);
   }
 
   // 去重并返回

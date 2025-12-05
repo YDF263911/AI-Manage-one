@@ -328,7 +328,7 @@ const extractText = async () => {
 
     if (analysisError && analysisError.code !== 'PGRST116') {
       // PGRST116 表示记录不存在，这是正常情况
-      throw analysisError;
+      console.warn('AI分析查询失败:', analysisError.message);
     }
 
     if (analysisData && analysisData.analysis_result) {
@@ -348,27 +348,34 @@ const extractText = async () => {
       }
       
       // 调用后端API进行文件内容提取
-      const response = await fetch(`http://localhost:5001/api/extract/text/${contractId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token')}`
-        },
-        credentials: 'include'
-      });
+      try {
+        const response = await fetch(`http://localhost:5001/api/extract/text/${contractId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': localStorage.getItem('token') || ''
+          },
+          credentials: 'include'
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-      }
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+        }
 
-      const result = await response.json();
-      
-      if (result.success) {
-        extractedText.value = result.data.extractedText;
-        ElMessage.success('合同内容提取完成');
-      } else {
-        throw new Error(result.message || '提取失败');
+        const result = await response.json();
+        
+        if (result.success && result.data?.extractedText) {
+          extractedText.value = result.data.extractedText;
+          ElMessage.success('合同内容提取完成');
+        } else {
+          throw new Error(result.message || '提取结果为空');
+        }
+      } catch (apiError: any) {
+        console.error('API调用失败:', apiError);
+        // 如果API调用失败，使用前端备用方法
+        ElMessage.warning('后端提取失败，尝试使用前端提取...');
+        await extractWithFallbackMethod();
       }
     }
     
@@ -376,12 +383,11 @@ const extractText = async () => {
     console.error('提取失败:', error);
     extractionError.value = error.message || '提取失败，请稍后重试';
     
-    // 如果后端API调用失败，使用备用方法
-    if (error.message.includes('网络') || error.message.includes('连接') || error.message.includes('HTTP')) {
-      ElMessage.warning('网络连接异常，尝试使用前端提取...');
-      await extractWithFallbackMethod();
+    // 如果前端备用方法也失败，显示友好的错误信息
+    if (error.message.includes('无法') || error.message.includes('失败')) {
+      ElMessage.error(`文件提取失败: ${error.message}`);
     } else {
-      ElMessage.error('提取失败');
+      ElMessage.error('提取过程中发生未知错误');
     }
   } finally {
     extracting.value = false;
@@ -469,21 +475,39 @@ const getClauseName = (key: string) => {
 // 备用方法：当后端API不可用时使用前端提取
 const extractWithFallbackMethod = async () => {
   try {
+    console.log('开始备用文件提取方法...');
+    
+    if (!currentFile.value?.filePath) {
+      throw new Error('文件路径为空，无法提取内容');
+    }
+
     // 首先尝试从Supabase存储中下载文件
     const { data, error } = await supabase.storage
       .from('contracts')
       .download(currentFile.value.filePath);
 
-    if (error) throw new Error(`文件下载失败: ${error.message}`);
+    if (error) {
+      console.error('Supabase存储下载失败:', error);
+      throw new Error(`文件下载失败: ${error.message}。请检查文件是否存在或权限是否正确。`);
+    }
+    
+    if (!data) {
+      throw new Error('下载的文件内容为空');
+    }
+
+    console.log('文件下载成功，大小:', data.size, '字节');
     
     // 根据文件类型处理
     const fileType = currentFile.value.fileType.toLowerCase();
+    const fileName = currentFile.value.filename.toLowerCase();
     
-    if (fileType.endsWith('.pdf')) {
+    if (fileType.endsWith('.pdf') || fileName.endsWith('.pdf')) {
       await extractPdfTextWithFallback(data);
-    } else if (fileType.endsWith('.txt') || fileType.endsWith('.md')) {
+    } else if (fileType.endsWith('.txt') || fileType.endsWith('.md') || 
+               fileName.endsWith('.txt') || fileName.endsWith('.md')) {
       await extractTextFile(data);
-    } else if (fileType.endsWith('.doc') || fileType.endsWith('.docx')) {
+    } else if (fileType.endsWith('.doc') || fileType.endsWith('.docx') ||
+               fileName.endsWith('.doc') || fileName.endsWith('.docx')) {
       await extractWordDocument(data);
     } else {
       // 尝试从二进制数据中提取文本
@@ -493,8 +517,20 @@ const extractWithFallbackMethod = async () => {
     ElMessage.success('合同内容提取完成（备用方法）');
   } catch (error: any) {
     console.error('备用提取失败:', error);
-    extractionError.value = error.message || '提取失败，请检查网络连接或联系管理员';
-    ElMessage.error('备用提取失败');
+    
+    // 提供更友好的错误信息
+    let errorMessage = error.message || '提取失败';
+    
+    if (error.message.includes('storage')) {
+      errorMessage = '文件存储访问失败，请检查文件是否正确上传';
+    } else if (error.message.includes('权限')) {
+      errorMessage = '文件访问权限不足，请联系管理员';
+    } else if (error.message.includes('网络')) {
+      errorMessage = '网络连接失败，请检查网络后重试';
+    }
+    
+    extractionError.value = errorMessage;
+    ElMessage.error(`备用提取失败: ${errorMessage}`);
   }
 };
 

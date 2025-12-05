@@ -78,18 +78,6 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/contracts/TextExtract.vue"),
         meta: { title: "合同内容提取" },
       },
-      {
-        path: "contracts/file-viewer",
-        name: "FileViewer",
-        component: () => import("@/views/contracts/FileViewer.vue"),
-        meta: { title: "文件内容查看" },
-      },
-      {
-        path: "contracts/text-extract",
-        name: "TextExtract",
-        component: () => import("@/views/contracts/TextExtract.vue"),
-        meta: { title: "合同内容提取" },
-      },
 
       {
         path: "templates",

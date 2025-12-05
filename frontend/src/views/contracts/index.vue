@@ -215,16 +215,19 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="250" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="viewContract(row)">查看</el-button>
+            <el-button size="small" @click="viewContractDetail(row)" type="primary">查看详情</el-button>
             <el-button
               size="small"
-              type="primary"
+              type="success"
               :disabled="row.status === 'analyzing'"
               @click="analyzeContract(row)"
             >
               {{ row.status === "analyzing" ? "分析中" : "分析" }}
+            </el-button>
+            <el-button size="small" type="warning" @click="viewContractFile(row)">
+              查看文件
             </el-button>
             <el-button size="small" type="danger" @click="deleteContract(row)"
               >删除</el-button
@@ -419,8 +422,39 @@ const handleCurrentChange = (page: number) => {
   loadContracts();
 };
 
-const viewContract = (contract: any) => {
+const viewContractDetail = (contract: any) => {
   router.push(`/contracts/${contract.id}`);
+};
+
+const viewContractFile = (contract: any) => {
+  if (!contract.file_path) {
+    ElMessage.warning('该合同没有上传文件');
+    return;
+  }
+  
+  // 智能判断文件类型，选择合适的查看方式
+  const fileName = contract.filename || contract.file_path.split(/[\\/]/).pop() || '';
+  const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+  
+  console.log('查看文件:', { fileName, fileExtension, file_path: contract.file_path });
+  
+  // 如果是PDF文件，使用PDF预览
+  if (fileExtension === '.pdf') {
+    router.push({
+      path: '/contracts-preview',
+      query: { 
+        contract_id: contract.id,
+        fileUrl: contract.file_path,
+        fileName: fileName
+      }
+    });
+  } else {
+    // 其他格式使用文本提取或文件查看器
+    router.push({
+      path: '/contracts/text-extract',
+      query: { contract_id: contract.id }
+    });
+  }
 };
 
 const analyzeContract = async (contract: any) => {
