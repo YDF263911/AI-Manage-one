@@ -215,23 +215,31 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="viewContractDetail(row)" type="primary">查看详情</el-button>
-            <el-button
-              size="small"
-              type="success"
-              :disabled="row.status === 'analyzing'"
-              @click="analyzeContract(row)"
-            >
-              {{ row.status === "analyzing" ? "分析中" : "分析" }}
-            </el-button>
-            <el-button size="small" type="warning" @click="viewContractFile(row)">
-              查看详情
-            </el-button>
-            <el-button size="small" type="danger" @click="deleteContract(row)"
-              >删除</el-button
-            >
+            <div class="action-buttons">
+              <el-button size="small" @click="viewContractDetail(row)" type="primary">
+                <el-icon><View /></el-icon>
+                合同详情
+              </el-button>
+              <el-button
+                size="small"
+                type="success"
+                :disabled="row.status === 'analyzing'"
+                @click="analyzeContract(row)"
+              >
+                <el-icon><DataAnalysis /></el-icon>
+                {{ row.status === "analyzing" ? "分析中" : "分析" }}
+              </el-button>
+              <el-button size="small" type="warning" @click="viewContractFile(row)">
+                <el-icon><Document /></el-icon>
+                文件预览
+              </el-button>
+              <el-button size="small" type="danger" @click="deleteContract(row)">
+                <el-icon><Delete /></el-icon>
+                删除
+              </el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -263,6 +271,9 @@ import {
   Clock,
   CircleCheck,
   Warning,
+  View,
+  DataAnalysis,
+  Delete,
 } from "@element-plus/icons-vue";
 import { supabase } from "@/utils/supabase";
 import { apiMethods } from "@/utils/api";
@@ -694,6 +705,22 @@ onMounted(() => {
 .pagination {
   margin-top: 20px;
   text-align: right;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+
+.action-buttons .el-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 5px 8px;
+  white-space: nowrap;
 }
 
 :deep(.el-table .cell) {
