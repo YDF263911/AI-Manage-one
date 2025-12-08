@@ -66,48 +66,15 @@ router.post('/analyze/:contractId', protect, async (req, res) => {
     let analysisResult;
     
     try {
-      console.log('开始调用AI服务进行合同分析...');
-      
       // 直接导入DeepSeekService，避免动态导入问题
       const { default: DeepSeekService } = await import('../services/deepseekService.js');
       analysisResult = await DeepSeekService.analyzeContractRisk(contractText);
       
-      console.log('AI服务分析结果:', analysisResult.success ? '成功' : '失败');
-      
       if (!analysisResult.success) {
-        // AI服务不可用，使用模拟数据
-        throw new Error('AI服务不可用，使用模拟分析');
+        throw new Error(`AI分析失败: ${analysisResult.error}`);
       }
     } catch (aiError) {
-      console.warn('AI服务不可用，使用模拟分析:', aiError.message);
-      
-      // 模拟分析结果
-      analysisResult = {
-        success: true,
-        analysis: {
-          risk_level: 'medium',
-          risk_score: 0.65,
-          summary: '基于合同基本信息进行的模拟分析。需要配置AI服务密钥以启用完整功能。',
-          major_risks: [
-            {
-              type: '信息完整度',
-              description: '合同信息不完整，缺少详细条款内容',
-              clause: '基本信息',
-              severity: 'medium',
-              suggestion: '上传完整合同文件以获得更准确的分析'
-            }
-          ],
-          compliance_issues: [],
-          missing_clauses: ['详细付款条款', '违约责任条款', '终止条款'],
-          key_terms: {
-            parties: '待补充',
-            amount: contract.contract_amount || '待补充',
-            duration: `${contract.effective_date || '待补充'} 至 ${contract.expiration_date || '待补充'}`,
-            payment_terms: '待补充',
-            termination: '待补充'
-          }
-        }
-      };
+      throw new Error(`AI服务调用失败: ${aiError.message}`);
     }
 
     // 3. 构建分析结果

@@ -247,9 +247,11 @@ import {
   View,
 } from "@element-plus/icons-vue";
 import { supabase } from "@/utils/supabase";
+import { useContractStore } from "@/stores/contract";
 
 const route = useRoute();
 const router = useRouter();
+const contractStore = useContractStore();
 
 const contractId = route.params.id as string;
 const contractDetail = ref<any>(null);
@@ -616,6 +618,32 @@ const viewFile = () => {
         filename: fileName
       }
     });
+  }
+};
+
+// 分析合同
+const analyzeContract = async (contractId: string) => {
+  try {
+    if (!contractId) {
+      ElMessage.warning("合同ID不存在");
+      return;
+    }
+
+    // 使用contractStore中的analyzeContract方法
+    const result = await contractStore.analyzeContract(contractId);
+    
+    if (result.success) {
+      ElMessage.success("合同分析任务已启动");
+      
+      // 等待分析完成，然后重新加载数据
+      setTimeout(() => {
+        loadContractDetail();
+      }, 3000);
+    } else {
+      ElMessage.error(`分析失败: ${result.error}`);
+    }
+  } catch (error: any) {
+    ElMessage.error(`分析合同失败: ${error.message}`);
   }
 };
 

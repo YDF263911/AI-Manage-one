@@ -6,16 +6,13 @@ dotenv.config();
 
 class DeepSeekService {
   constructor() {
-    this.apiKey = process.env.DEEPSEEK_API_KEY || 'sk-0396acf6327343bc868df9e51aaebe8d';
+    this.apiKey = process.env.DEEPSEEK_API_KEY;
     this.apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1';
     this.model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
     
-    // 如果API密钥不可用，使用模拟模式
-    if (!this.apiKey || this.apiKey === 'your_deepseek_api_key_here') {
-      console.warn('DeepSeek API Key not configured. Running in simulation mode.');
-      this.simulationMode = true;
-    } else {
-      this.simulationMode = false;
+    // 验证API密钥配置
+    if (!this.apiKey) {
+      throw new Error('DeepSeek API Key未配置，请检查环境变量设置');
     }
 
     this.client = axios.create({
@@ -79,40 +76,9 @@ class DeepSeekService {
    * @returns {Promise<Object>} - 分析结果
    */
   async analyzeContractRisk(contractText) {
-    // 模拟模式
-    if (this.simulationMode) {
-      console.log('Running contract analysis in simulation mode');
-      
-      // 模拟延迟以模仿真实API调用
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // 模拟分析结果
-      return {
-        success: true,
-        analysis: {
-          risk_level: 'medium',
-          risk_score: 0.65,
-          summary: '基于合同基本信息进行的模拟分析。需要配置AI服务密钥以启用完整功能。',
-          major_risks: [
-            {
-              type: '信息完整度',
-              description: '合同信息不完整，缺少详细条款内容',
-              clause: '基本信息',
-              severity: 'medium',
-              suggestion: '上传完整合同文件以获得更准确的分析'
-            }
-          ],
-          compliance_issues: [],
-          missing_clauses: ['详细付款条款', '违约责任条款', '终止条款'],
-          key_terms: {
-            parties: '待补充',
-            amount: '待补充',
-            duration: '待补充',
-            payment_terms: '待补充',
-            termination: '待补充'
-          }
-        }
-      };
+    // 验证合同文本
+    if (!contractText || contractText.trim().length < 10) {
+      throw new Error('合同文本内容过短，无法进行有效分析');
     }
 
     // 真实API调用

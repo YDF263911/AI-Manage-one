@@ -143,51 +143,43 @@ const userStore = useUserStore();
 // 计算用户登录状态
 const isLoggedIn = computed(() => userStore.isLoggedIn);
 
-// 合同样本数据
-const contractSamples = ref([
-  {
-    id: 1,
-    title: "租赁合同",
-    description: "资产租赁合同模板，适用于场地和设备租赁",
-    icon: "OfficeBuilding",
-    tags: ["租赁", "场地"],
-  },
-  {
-    id: 2,
-    title: "采购合同",
-    description: "标准商品采购合同模板，包含质量保证条款",
-    icon: "ShoppingBag",
-    tags: ["采购", "商品"],
-  },
-  {
-    id: 3,
-    title: "劳动合同",
-    description: "标准劳动合同模板，符合劳动法规定",
-    icon: "User",
-    tags: ["人事", "雇佣"],
-  },
-  {
-    id: 4,
-    title: "保密协议",
-    description: "商业机密保护协议模板，适用于合作伙伴",
-    icon: "Lock",
-    tags: ["保密", "商业"],
-  },
-  {
-    id: 5,
-    title: "服务合同",
-    description: "技术服务合同模板，明确服务内容和标准",
-    icon: "Files",
-    tags: ["服务", "技术"],
-  },
-  {
-    id: 6,
-    title: "房屋买卖合同",
-    description: "不动产买卖交易合同模板",
-    icon: "HomeFilled",
-    tags: ["房产", "交易"],
-  },
-]);
+// 从API获取合同模板数据
+const contractSamples = ref([]);
+const loadingSamples = ref(false);
+
+// 加载合同模板数据
+const loadContractSamples = async () => {
+  try {
+    loadingSamples.value = true;
+    const response = await api.get('/templates', {
+      params: {
+        status: 'active',
+        limit: 6
+      }
+    });
+    
+    if (response.data.success) {
+      contractSamples.value = response.data.data.map(template => ({
+        id: template.id,
+        title: template.name,
+        description: template.description || '专业的合同模板',
+        tags: template.tags || ['模板'],
+        icon: "Files"
+      }));
+    }
+  } catch (error) {
+    console.error('加载合同模板失败:', error);
+    // 如果API调用失败，显示空列表而不是模拟数据
+    contractSamples.value = [];
+  } finally {
+    loadingSamples.value = false;
+  }
+};
+
+// 页面加载时获取数据
+onMounted(() => {
+  loadContractSamples();
+});
 
 // 标签类型映射
 const getTagType = (tag: string) => {

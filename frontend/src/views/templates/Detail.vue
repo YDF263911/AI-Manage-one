@@ -281,8 +281,17 @@ const loadRelatedTemplates = async () => {
 };
 
 const loadUsageStats = async () => {
-  // 模拟使用统计
-  recentUsage.value = Math.floor(Math.random() * 10);
+  try {
+    // 从API获取使用统计
+    const response = await api.get(`/templates/${templateId}/stats`);
+    if (response.data.success) {
+      recentUsage.value = response.data.data.recent_usage || 0;
+    }
+  } catch (error) {
+    console.error('加载使用统计失败:', error);
+    // API调用失败时显示0
+    recentUsage.value = 0;
+  }
 };
 
 const useTemplate = async () => {

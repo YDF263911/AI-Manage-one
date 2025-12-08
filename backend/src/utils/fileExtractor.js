@@ -77,10 +77,8 @@ class FileExtractor {
       // 清理文本格式
       text = this.cleanText(text);
       
-      console.log(`PDF文件提取成功，字符数: ${text.length}`);
       return text;
     } catch (error) {
-      console.error('PDF提取失败:', error);
       throw new Error(`PDF文件提取失败: ${error.message}`);
     }
   }
@@ -98,10 +96,8 @@ class FileExtractor {
       // 清理文本格式
       text = this.cleanText(text);
       
-      console.log(`DOCX文件提取成功，字符数: ${text.length}`);
       return text;
     } catch (error) {
-      console.error('DOCX提取失败:', error);
       throw new Error(`DOCX文件提取失败: ${error.message}`);
     }
   }
@@ -122,7 +118,6 @@ class FileExtractor {
       }
       
       text = this.cleanText(text);
-      console.log(`DOC文件提取成功，字符数: ${text.length}`);
       return text;
     } catch (error) {
       console.error('DOC提取失败:', error);
@@ -142,10 +137,8 @@ class FileExtractor {
       // 清理文本格式
       text = this.cleanText(text);
       
-      console.log(`TXT文件提取成功，字符数: ${text.length}`);
       return text;
     } catch (error) {
-      console.error('TXT提取失败:', error);
       throw new Error(`TXT文件提取失败: ${error.message}`);
     }
   }

@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 
 // 创建axios实例
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api",
   timeout: 90000, // 增加到90秒，适配AI分析耗时
   headers: {
     "Content-Type": "application/json",

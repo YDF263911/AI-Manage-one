@@ -58,7 +58,7 @@
           </div>
         </el-descriptions-item>
         <el-descriptions-item label="匹配模式">
-          <el-tag>{{ getPatternTypeText(rule.pattern_type) }}</el-tag>
+          <el-tag type="info">{{ getPatternTypeText(rule.pattern_type) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="匹配内容">
           <div class="code-block">

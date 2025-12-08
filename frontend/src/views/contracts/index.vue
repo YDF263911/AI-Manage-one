@@ -470,9 +470,7 @@ const analyzeContract = async (contract: any) => {
     ElMessage.success("开始分析合同...");
 
     // 使用统一的API方法调用分析API
-    await apiMethods.create("/analysis/analyze", {
-      contract_id: contract.id,
-    });
+    await apiMethods.create(`/analysis/analyze/${contract.id}`, {});
 
     ElMessage.success("合同分析完成");
     // 刷新合同列表

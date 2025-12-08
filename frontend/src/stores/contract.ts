@@ -75,7 +75,7 @@ export const useContractStore = defineStore("contract", () => {
 
       // 上传文件到存储
       const fileExt = file.name.split(".").pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}.${fileExt}`;
       const filePath = `contracts/${authStore.user!.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -233,91 +233,50 @@ export const useContractStore = defineStore("contract", () => {
       const contract = contracts.value.find((c) => c.id === contractId);
       if (!contract) throw new Error("合同不存在");
 
-      // 使用apiMethods调用后端AI分析服务（正确的端点）
-      const result = await apiMethods.create(`/analysis/analyze/${contractId}`, {});
+      // 调用后端AI分析服务
+      await apiMethods.create(`/analysis/analyze/${contractId}`, {});
 
-      // 由于分析是异步的，这里只是启动分析流程
-      // 实际结果会通过其他方式（如轮询或WebSocket）获取
+      // 启动轮询机制获取分析结果
+      startAnalysisPolling(contractId);
 
-      // 模拟分析过程 - 生产环境应该通过轮询或WebSocket获取结果
-      setTimeout(async () => {
-        try {
-          // 创建分析记录（模拟数据，实际应该从API获取）
-          const { data: analysisData, error: analysisError } = await supabase
-            .from("contract_analysis")
-            .insert([
-              {
-                contract_id: contractId,
-                user_id: authStore.user!.id,
-                analysis_result: {
-                  risk_level: "medium",
-                  compliance_score: 85,
-                  risks: [
-                    {
-                      id: "1",
-                      title: "付款条款不明确",
-                      severity: "medium",
-                      description: "合同中未明确具体的付款时间和方式",
-                      suggestion: "建议明确付款时间节点和支付方式",
-                    },
-                    {
-                      id: "2",
-                      title: "违约责任条款缺失",
-                      severity: "high",
-                      description: "合同中缺少具体的违约责任条款",
-                      suggestion: "建议补充违约责任条款",
-                    },
-                  ],
-                  compliance_checks: [
-                    {
-                      item: "主体资格",
-                      status: "pass",
-                      description: "合同签署方具备合法主体资格",
-                    },
-                    {
-                      item: "合同形式",
-                      status: "pass",
-                      description: "合同形式符合法律规定",
-                    },
-                  ],
-                  key_info: {
-                    amount: "¥500,000",
-                    duration: "1年",
-                    parties: "甲方 vs 乙方",
-                    effectiveDate: "2024-01-01",
-                    expiryDate: "2025-01-01",
-                    liability: "合同金额的20%",
-                  },
-                },
-                confidence_score: 0.92,
-                overall_risk_level: "medium",
-                risk_summary: "合同风险中等，主要关注条款细节",
-                compliance_status: true,
-                completed_at: new Date().toISOString(),
-              },
-            ])
-            .select()
-            .single();
-
-          if (!analysisError) {
-            // 更新合同状态为已分析
-            await updateContractStatus(contractId, "analyzed");
-            await loadContractAnalyses(contractId);
-          }
-        } catch (simulationError) {
-          console.error("模拟分析过程失败:", simulationError);
-        }
-      }, 3000);
-
-      return { success: true };
+      return { success: true, message: "分析任务已启动" };
     },
     (error: any) => {
       handleError(error, { customMessage: "开始分析合同失败" });
-      // 由于catchAsyncError不直接传递contractId参数，我们需要调整错误处理策略
-      // 在生产环境中，可以考虑在抛出错误时包含contractId信息
       return { success: false, error: error.message };
     },
   );
+
+  // 轮询获取分析结果
+  const startAnalysisPolling = async (contractId: string) => {
+    const maxAttempts = 30; // 最大尝试次数
+    const interval = 2000; // 2秒间隔
+    
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        // 检查分析状态
+        const analysisResult = await apiMethods.getDetail(`/analysis`, contractId);
+        
+        if (analysisResult.data) {
+          // 分析完成，更新状态
+          await updateContractStatus(contractId, "analyzed");
+          await loadContractAnalyses(contractId);
+          return;
+        }
+        
+        // 等待下一次轮询
+        await new Promise(resolve => setTimeout(resolve, interval));
+      } catch (error) {
+        console.warn(`第${attempt + 1}次轮询失败:`, error);
+        
+        // 如果超过最大尝试次数，标记为分析失败
+        if (attempt === maxAttempts - 1) {
+          await updateContractStatus(contractId, "analyzed");
+          handleError(new Error("分析超时，请检查分析结果"), { customMessage: "分析超时" });
+        }
+      }
+    }
+  };
 
   // 批量分析合同
   const batchAnalyzeContracts = catchAsyncError(
