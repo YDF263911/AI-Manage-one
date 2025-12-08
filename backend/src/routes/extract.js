@@ -60,13 +60,13 @@ router.post('/text/:contractId', protect, async (req, res) => {
         if (cachedResult.length > 0) {
           const cache = cachedResult[0];
           
-          // 检查文件是否已修改（通过文件大小或更新时间）
+          // 检查文件是否已修改（通过更新时间）
           const fileChanged = contract.updated_at && 
-                          cache.file_modified_at && 
-                          new Date(contract.updated_at) > new Date(cache.file_modified_at);
+                          cache.contract_updated_at && 
+                          new Date(contract.updated_at) > new Date(cache.contract_updated_at);
 
           if (!fileChanged) {
-            extractedText = cache.extracted_text;
+            extractedText = cache.cached_content;
             fromCache = true;
             cacheHit = true;
             
@@ -114,15 +114,14 @@ router.post('/text/:contractId', protect, async (req, res) => {
         // 3. 存储到缓存
         const cacheData = {
           contract_id: contractId,
-          extracted_text: extractedText,
+          cached_content: extractedText,
+          content_length: extractedText.length,
           word_count: wordCount,
-          character_count: characterCount,
           extraction_method: 'auto',
-          file_modified_at: contract.updated_at || new Date().toISOString(),
-          extraction_quality: quality,
-          confidence_score: quality === 'excellent' ? 0.95 : 
-                          quality === 'good' ? 0.80 : 
-                          quality === 'fair' ? 0.60 : 0.40,
+          contract_updated_at: contract.updated_at || new Date().toISOString(),
+          quality_score: quality === 'excellent' ? 0.95 : 
+                        quality === 'good' ? 0.80 : 
+                        quality === 'fair' ? 0.60 : 0.40,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -162,13 +161,12 @@ router.post('/text/:contractId', protect, async (req, res) => {
         // 即使是备用结果也缓存
         const fallbackCacheData = {
           contract_id: contractId,
-          extracted_text: extractedText,
+          cached_content: extractedText,
+          content_length: extractedText.length,
           word_count: 0,
-          character_count: extractedText.length,
           extraction_method: 'fallback',
-          file_modified_at: contract.updated_at || new Date().toISOString(),
-          extraction_quality: 'poor',
-          confidence_score: 0.20,
+          contract_updated_at: contract.updated_at || new Date().toISOString(),
+          quality_score: 0.20,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
