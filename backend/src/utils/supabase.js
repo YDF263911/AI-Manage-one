@@ -94,6 +94,20 @@ export class DatabaseService {
     if (error) throw error;
     return true;
   }
+
+  // UPSERT操作（更新或插入）
+  static async upsert(table, conflictColumn, data) {
+    const { data: result, error } = await supabase
+      .from(table)
+      .upsert(data, {
+        onConflict: conflictColumn,
+        ignoreDuplicates: false
+      })
+      .select();
+    
+    if (error) throw error;
+    return result[0];
+  }
 }
 
 export default supabase;

@@ -7,12 +7,13 @@ const router = express.Router();
 
 /**
  * @route POST /api/extract/text/:contractId
- * @desc 提取合同文件的文本内容
+ * @desc 提取合同文件的文本内容（带缓存）
  * @access Private
  */
 router.post('/text/:contractId', protect, async (req, res) => {
   try {
     const { contractId } = req.params;
+    const { force = false } = req.body; // 是否强制重新提取
 
     // 获取合同信息
     const contracts = await DatabaseService.select('contracts', {
@@ -45,13 +46,93 @@ router.post('/text/:contractId', protect, async (req, res) => {
       });
     }
 
-    // 提取文件内容
     let extractedText;
+    let fromCache = false;
+    let cacheHit = false;
+
     try {
-      extractedText = await FileExtractor.extractText(
-        contract.file_path,
-        contract.file_type
-      );
+      // 1. 检查缓存（除非强制重新提取）
+      if (!force) {
+        const cachedResult = await DatabaseService.select('contract_text_cache', {
+          contract_id: contractId
+        });
+
+        if (cachedResult.length > 0) {
+          const cache = cachedResult[0];
+          
+          // 检查文件是否已修改（通过文件大小或更新时间）
+          const fileChanged = contract.updated_at && 
+                          cache.file_modified_at && 
+                          new Date(contract.updated_at) > new Date(cache.file_modified_at);
+
+          if (!fileChanged) {
+            extractedText = cache.extracted_text;
+            fromCache = true;
+            cacheHit = true;
+            
+            console.log(`使用缓存文本内容，合同ID: ${contractId}`);
+            
+            // 更新缓存访问时间
+            await DatabaseService.update('contract_text_cache', cache.id, {
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+      }
+
+      // 2. 如果没有缓存或需要重新提取，进行实际提取
+      if (!fromCache) {
+        console.log(`重新提取文本内容，合同ID: ${contractId}`);
+        
+        // 开始提取
+        await DatabaseService.update('contracts', contractId, {
+          extraction_status: 'processing'
+        });
+
+        extractedText = await FileExtractor.extractText(
+          contract.file_path,
+          contract.file_type
+        );
+
+        // 计算文本统计信息
+        const wordCount = extractedText.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, ' ').split(/\s+/).filter(Boolean).length;
+        const characterCount = extractedText.length;
+        
+        // 评估提取质量
+        let quality = 'unknown';
+        if (characterCount > 1000) {
+          const chineseChars = (extractedText.match(/[\u4e00-\u9fa5]/g) || []).length;
+          const englishChars = (extractedText.match(/[a-zA-Z]/g) || []).length;
+          const meaningfulRatio = (chineseChars + englishChars) / characterCount;
+          
+          if (meaningfulRatio > 0.8) quality = 'excellent';
+          else if (meaningfulRatio > 0.6) quality = 'good';
+          else if (meaningfulRatio > 0.4) quality = 'fair';
+          else quality = 'poor';
+        }
+
+        // 3. 存储到缓存
+        const cacheData = {
+          contract_id: contractId,
+          extracted_text: extractedText,
+          word_count: wordCount,
+          character_count: characterCount,
+          extraction_method: 'auto',
+          file_modified_at: contract.updated_at || new Date().toISOString(),
+          extraction_quality: quality,
+          confidence_score: quality === 'excellent' ? 0.95 : 
+                          quality === 'good' ? 0.80 : 
+                          quality === 'fair' ? 0.60 : 0.40,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        // 使用UPSERT（更新或插入）
+        await DatabaseService.upsert('contract_text_cache', 'contract_id', cacheData);
+        
+        console.log(`文本提取完成并已缓存，质量: ${quality}`);
+      }
+
     } catch (extractError) {
       console.error('文件内容提取失败:', extractError);
       
@@ -77,6 +158,23 @@ router.post('/text/:contractId', protect, async (req, res) => {
 - Word文档 (.doc, .docx)
 - 文本文件 (.txt)
         `.trim();
+
+        // 即使是备用结果也缓存
+        const fallbackCacheData = {
+          contract_id: contractId,
+          extracted_text: extractedText,
+          word_count: 0,
+          character_count: extractedText.length,
+          extraction_method: 'fallback',
+          file_modified_at: contract.updated_at || new Date().toISOString(),
+          extraction_quality: 'poor',
+          confidence_score: 0.20,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        await DatabaseService.upsert('contract_text_cache', 'contract_id', fallbackCacheData);
+        
       } catch (fallbackError) {
         throw new Error(`文件内容提取失败: ${extractError.message}`);
       }
@@ -88,12 +186,15 @@ router.post('/text/:contractId', protect, async (req, res) => {
       extraction_completed_at: new Date().toISOString(),
     });
 
+    const message = cacheHit ? '已加载缓存的文本内容' : '文件内容提取完成';
+
     res.json({
       success: true,
-      message: '文件内容提取完成',
+      message,
       data: {
         contractId,
         extractedText,
+        fromCache,
         fileInfo: {
           filename: contract.filename,
           fileType: contract.file_type,

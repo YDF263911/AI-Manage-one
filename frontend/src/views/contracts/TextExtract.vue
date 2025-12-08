@@ -56,7 +56,7 @@
           @click="extractText"
           :loading="extracting"
         >
-          {{ extractedText ? '重新提取' : '智能提取' }}
+          {{ fromCache.value ? '重新提取' : (extractedText.value ? '重新提取' : '智能提取') }}
         </el-button>
         <el-button 
           type="success" 
@@ -72,6 +72,14 @@
           @click="refreshViewer"
         >
           刷新
+        </el-button>
+        <el-button 
+          v-if="fromCache.value && extractedText.value"
+          type="warning" 
+          :icon="MagicStick" 
+          @click="forceReExtract"
+        >
+          强制重提
         </el-button>
 
       </div>
@@ -214,6 +222,7 @@ const currentFile = ref<any>(null);
 const extractedText = ref('');
 const extractionError = ref('');
 const searchText = ref('');
+const fromCache = ref(false);
 
 const contractId = route.query.contract_id as string;
 
@@ -221,7 +230,7 @@ const contractId = route.query.contract_id as string;
 const extractionStatus = computed(() => {
   if (extracting.value) return { type: 'warning', text: '提取中...' };
   if (extractionError.value) return { type: 'danger', text: '提取失败' };
-  if (extractedText.value) return { type: 'success', text: '已提取' };
+  if (extractedText.value) return { type: 'success', text: fromCache.value ? '已加载(缓存)' : '已提取' };
   return { type: 'info', text: '未提取' };
 });
 
@@ -359,7 +368,13 @@ const extractText = async () => {
         
         if (result.success && result.data?.extractedText) {
           extractedText.value = result.data.extractedText;
-          ElMessage.success('合同内容提取完成');
+          fromCache.value = result.data.fromCache || false;
+          
+          if (fromCache.value) {
+            ElMessage.success(result.message || '已加载缓存的文本内容');
+          } else {
+            ElMessage.success('合同内容提取完成');
+          }
         } else {
           throw new Error(result.message || '提取结果为空');
         }
@@ -1142,7 +1157,87 @@ const refreshViewer = () => {
   extractedText.value = '';
   extractionError.value = '';
   searchText.value = '';
+  fromCache.value = false;
   loadContractDetail();
+};
+
+const forceReExtract = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '强制重新提取将忽略缓存，重新从源文件提取内容，确定要继续吗？',
+      '确认强制重新提取',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    );
+    
+    // 清除缓存状态
+    fromCache.value = false;
+    extractedText.value = '';
+    extractionError.value = '';
+    
+    // 调用带force参数的API
+    await forceExtractWithCache();
+    
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(`强制重新提取失败: ${error.message}`);
+    }
+  }
+};
+
+const forceExtractWithCache = async () => {
+  if (!contractId) {
+    ElMessage.error('缺少合同ID');
+    return;
+  }
+
+  extracting.value = true;
+  extractionError.value = '';
+  fromCache.value = false;
+  
+  try {
+    ElMessage.info('正在强制重新提取合同内容...');
+    
+    if (!currentFile.value?.filePath) {
+      throw new Error('文件路径不存在');
+    }
+    
+    // 调用后端API进行强制重新提取
+    const response = await fetch(`http://localhost:5001/api/extract/text/${contractId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': localStorage.getItem('token') || ''
+      },
+      body: JSON.stringify({ force: true }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    if (result.success && result.data?.extractedText) {
+      extractedText.value = result.data.extractedText;
+      fromCache.value = false; // 强制提取肯定是新的
+      ElMessage.success('合同内容强制重新提取完成');
+    } else {
+      throw new Error(result.message || '提取结果为空');
+    }
+    
+  } catch (error: any) {
+    console.error('强制重新提取失败:', error);
+    extractionError.value = error.message || '强制重新提取失败，请稍后重试';
+    ElMessage.error(`强制重新提取失败: ${error.message}`);
+  } finally {
+    extracting.value = false;
+  }
 };
 
 
