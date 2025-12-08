@@ -215,7 +215,7 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="viewContractDetail(row)" type="primary">查看详情</el-button>
             <el-button
@@ -227,7 +227,7 @@
               {{ row.status === "analyzing" ? "分析中" : "分析" }}
             </el-button>
             <el-button size="small" type="warning" @click="viewContractFile(row)">
-              查看文件
+              查看详情
             </el-button>
             <el-button size="small" type="danger" @click="deleteContract(row)"
               >删除</el-button
@@ -432,28 +432,27 @@ const viewContractFile = (contract: any) => {
     return;
   }
   
-  // 智能判断文件类型，选择合适的查看方式
+  // 智能判断文件类型，统一使用文本提取功能
   const fileName = contract.filename || contract.file_path.split(/[\\/]/).pop() || '';
   const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
   
-  console.log('查看文件:', { fileName, fileExtension, file_path: contract.file_path });
+  console.log('查看文件详情:', { fileName, fileExtension, file_path: contract.file_path });
   
-  // 如果是PDF文件，使用PDF预览
-  if (fileExtension === '.pdf') {
+  // 支持的文件格式：PDF、Word、文本文件等
+  const supportedFormats = ['.pdf', '.doc', '.docx', '.txt', '.md'];
+  const isSupported = supportedFormats.some(format => fileName.endsWith(format));
+  
+  if (isSupported) {
+    // 跳转到智能文本提取页面，支持多种格式的文档内容提取
     router.push({
-      path: '/contracts-preview',
+      path: '/contracts/text-extract',
       query: { 
         contract_id: contract.id,
-        fileUrl: contract.file_path,
-        fileName: fileName
+        filename: fileName
       }
     });
   } else {
-    // 其他格式使用文本提取或文件查看器
-    router.push({
-      path: '/contracts/text-extract',
-      query: { contract_id: contract.id }
-    });
+    ElMessage.warning(`不支持的文件格式: ${fileExtension}，支持的格式: PDF、Word、TXT`);
   }
 };
 

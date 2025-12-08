@@ -35,11 +35,8 @@
               >下载合同</el-button
             >
             <el-button type="success" :icon="Document" @click="viewFile"
-              >查看文件</el-button
+              >查看详情</el-button
             >
-            <el-button type="warning" :icon="View" @click="viewContract">
-              PDF预览
-            </el-button>
             <el-button :icon="Edit" @click="editContract">编辑</el-button>
             <el-button :icon="Delete" type="danger" @click="deleteContract"
               >删除</el-button
@@ -244,7 +241,6 @@ import {
   Edit,
   Delete,
   Document,
-  View,
 } from "@element-plus/icons-vue";
 import { supabase } from "@/utils/supabase";
 import { useContractStore } from "@/stores/contract";
@@ -370,167 +366,7 @@ const downloadFile = async () => {
   }
 };
 
-// 测试配置 - 可以通过URL参数启用测试模式
-const getTestConfig = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  // 从URL参数获取测试模式状态，优先级最高
-  const urlTestMode = urlParams.get("testMode") === "true";
-  // 默认配置
-  const defaultConfig = {
-    enabled: urlTestMode || false, // 默认关闭测试模式
-    pdfPath: "/api/uploads/contracts/test.pdf",
-    pdfName: "test.pdf",
-  };
-  return defaultConfig;
-};
 
-// 预览合同
-const viewContract = () => {
-  console.log(
-    "%c====== 查看合同开始 ======",
-    "background: #4285f4; color: white; padding: 2px 6px; border-radius: 3px;",
-  );
-  console.log("合同详情:", contractDetail.value);
-
-  // 获取测试配置
-  const testConfig = getTestConfig();
-
-  // 确定要使用的PDF路径
-  let pdfPath = "";
-  let pdfName = "";
-
-  // 从contractDetail获取实际数据
-  const actualFilePath = contractDetail.value?.file_path;
-  const actualFileName = contractDetail.value?.filename || "document.pdf";
-
-  // 验证文件格式（测试模式除外）
-  if (
-    !testConfig.enabled &&
-    actualFileName &&
-    !actualFileName.toLowerCase().endsWith(".pdf")
-  ) {
-    const fileExtension = actualFileName
-      .toLowerCase()
-      .substring(actualFileName.lastIndexOf("."));
-    ElMessage.error(`不支持的文件格式: ${fileExtension}，仅支持PDF文件预览`);
-    console.log(`文件格式不支持预览: ${fileExtension}`);
-    console.log(
-      "%c====== 查看合同结束 ======",
-      "background: #4285f4; color: white; padding: 2px 6px; border-radius: 3px;",
-    );
-    return;
-  }
-
-  // 获取文件URL
-  const getFileUrl = (filePath: string) => {
-    console.log("====== PDF URL生成开始 ======");
-    console.log("原始文件路径:", filePath);
-    console.log("文件路径类型:", typeof filePath);
-
-    // 测试模式下直接返回测试路径
-    if (testConfig.enabled) {
-      console.log(
-        "%c测试模式激活，返回测试PDF路径",
-        "background: #ff9800; color: white; padding: 2px 6px; border-radius: 3px;",
-      );
-      console.log("实际记录ID:", contractId);
-      console.log("实际文件路径:", filePath);
-      console.log("====== PDF URL生成结束 ======");
-      return testConfig.pdfPath;
-    }
-
-    if (!filePath) {
-      console.log("文件路径为空，返回空字符串");
-      console.log("====== PDF URL生成结束 ======");
-      return "";
-    }
-
-    // 如果是Supabase存储路径，需要转换
-    if (filePath.startsWith("contracts/")) {
-      console.log("检测到Supabase存储路径，生成公共URL");
-      const { data } = supabase.storage
-        .from("contracts")
-        .getPublicUrl(filePath);
-      console.log("Supabase URL:", data.publicUrl);
-      console.log("完整访问路径:", window.location.origin + data.publicUrl);
-      console.log("====== PDF URL生成结束 ======");
-      return data.publicUrl;
-    }
-
-    // 处理本地文件路径，提取文件名并拼接正确的API代理前缀
-    console.log("进行本地文件路径处理");
-    const fileName = filePath.split(/[\\/]/).pop() || "";
-    console.log("提取的文件名:", fileName);
-    const localFileUrl = `/api/uploads/contracts/${fileName}`;
-
-    // 检查并修复URL路径
-    if (!localFileUrl.startsWith("http") && !localFileUrl.startsWith("/")) {
-      const fixedUrl = "/" + localFileUrl;
-      console.log("修复了相对路径:", fixedUrl);
-      console.log("完整访问路径:", window.location.origin + fixedUrl);
-      console.log("====== PDF URL生成结束 ======");
-      return fixedUrl;
-    }
-
-    console.log("本地文件URL:", localFileUrl);
-    console.log("完整访问路径:", window.location.origin + localFileUrl);
-    console.log("====== PDF URL生成结束 ======");
-    return localFileUrl;
-  };
-
-  // 检查是否有实际文件路径
-  if (!actualFilePath) {
-    if (testConfig.enabled) {
-      // 在测试模式下即使没有实际文件也可以预览测试PDF
-      pdfPath = testConfig.pdfPath;
-      pdfName = testConfig.pdfName;
-
-      console.log(
-        "%c使用测试PDF文件进行预览",
-        "background: #ff9800; color: white; padding: 2px 6px; border-radius: 3px;",
-      );
-      ElMessage({
-        message: "正在使用测试模式预览PDF",
-        type: "warning",
-        duration: 5000,
-      });
-    } else {
-      ElMessage.warning("合同文件不存在");
-      console.log("====== 查看合同结束 ======");
-      return;
-    }
-  } else {
-    // 使用实际文件路径
-    pdfPath = getFileUrl(actualFilePath);
-    pdfName = testConfig.enabled ? testConfig.pdfName : actualFileName;
-
-    if (testConfig.enabled) {
-      console.log(
-        "%c使用测试模式PDF文件",
-        "background: #ff9800; color: white; padding: 2px 6px; border-radius: 3px;",
-      );
-      ElMessage({
-        message: "正在使用测试模式预览PDF",
-        type: "warning",
-        duration: 5000,
-      });
-    } else {
-      console.log("使用实际PDF文件:", pdfPath, pdfName);
-    }
-  }
-
-  console.log("获取的文件URL:", pdfPath);
-  console.log("编码后的文件URL:", encodeURIComponent(pdfPath));
-
-  // 打开预览页面
-  const previewUrl = `/contracts-preview?fileUrl=${encodeURIComponent(pdfPath)}&fileName=${encodeURIComponent(pdfName)}`;
-  console.log("预览页面完整URL:", window.location.origin + previewUrl);
-  window.open(previewUrl, "_blank");
-  console.log(
-    "%c====== 查看合同结束 ======",
-    "background: #4285f4; color: white; padding: 2px 6px; border-radius: 3px;",
-  );
-};
 
 const editContract = () => {
   editDialogVisible.value = true;
@@ -555,7 +391,7 @@ const saveEdit = async () => {
 
 // 智能文件查看功能
 const viewFile = () => {
-  console.log('查看文件被点击，合同详情:', contractDetail.value);
+  console.log('查看文件详情被点击，合同详情:', contractDetail.value);
   
   if (!contractDetail.value?.file_path) {
     ElMessage.warning("该合同没有上传文件");
@@ -586,12 +422,12 @@ const viewFile = () => {
   // 获取文件扩展名
   const fileExtension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
   
-  // 智能判断：优先使用文本提取功能，支持更多格式
-  const extractableFormats = ['.pdf', '.doc', '.docx', '.txt', '.md'];
-  const canExtract = extractableFormats.some(format => fileName.endsWith(format));
+  // 智能判断：支持的文档格式，统一使用文本提取功能
+  const supportedFormats = ['.pdf', '.doc', '.docx', '.txt', '.md'];
+  const isSupported = supportedFormats.some(format => fileName.endsWith(format));
   
-  if (canExtract) {
-    // 跳转到智能文本提取页面，支持文本预览和内容提取
+  if (isSupported) {
+    // 跳转到智能文本提取页面，支持PDF、Word、文本等多种格式的文档内容提取
     router.push({
       path: '/contracts/text-extract',
       query: { 
@@ -599,25 +435,17 @@ const viewFile = () => {
         filename: fileName
       }
     });
-  } else if (fileExtension === '.pdf') {
-    // PDF文件：使用专门的PDF预览页面
-    router.push({
-      path: '/contracts-preview',
-      query: { 
-        contract_id: contractDetail.value.id,
-        fileUrl: contractDetail.value.file_path,
-        fileName: fileName
-      }
-    });
+    
+    // 显示提示信息
+    if (fileExtension === '.pdf') {
+      ElMessage.info('正在使用智能PDF文本提取功能');
+    } else if (fileExtension === '.doc' || fileExtension === '.docx') {
+      ElMessage.info('正在使用智能Word文档提取功能');
+    } else {
+      ElMessage.info('正在使用智能文本提取功能');
+    }
   } else {
-    // 其他格式：跳转到文件查看器页面
-    router.push({
-      path: '/contracts/file-viewer',
-      query: { 
-        contract_id: contractDetail.value.id,
-        filename: fileName
-      }
-    });
+    ElMessage.warning(`不支持的文件格式: ${fileExtension}，支持的格式: PDF、Word、TXT`);
   }
 };
 

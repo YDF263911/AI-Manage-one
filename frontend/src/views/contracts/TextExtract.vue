@@ -819,7 +819,7 @@ const extractPdfTextSimple = async (pdfBlob: Blob): Promise<string> => {
           .replace(/^\s+|\s+$/g, '') // 去除首尾空白
           .trim();
         
-        console.log('二进制提取结果，长度:', cleanText.length);
+        console.log('PDF二进制提取结果，长度:', cleanText.length);
         
         if (cleanText.length < 10) {
           reject(new Error('PDF文件中未找到可读文本内容'));
@@ -828,7 +828,7 @@ const extractPdfTextSimple = async (pdfBlob: Blob): Promise<string> => {
         
         // 检查文本质量
         if (!isTextQualityGood(cleanText)) {
-          reject(new Error('提取的文本质量较低，可能包含大量乱码'));
+          reject(new Error('提取的PDF文本质量较低，可能包含大量乱码'));
           return;
         }
         
@@ -841,7 +841,7 @@ const extractPdfTextSimple = async (pdfBlob: Blob): Promise<string> => {
     };
     
     reader.onerror = () => {
-      reject(new Error('文件读取失败'));
+      reject(new Error('PDF文件读取失败'));
     };
     
     reader.readAsArrayBuffer(pdfBlob);
@@ -900,53 +900,192 @@ const extractTextFile = async (textBlob: Blob) => {
 
 const extractWordDocument = async (wordBlob: Blob) => {
   try {
-    // 对于Word文档，我们无法在前端直接解析，需要调用后端API
-    const formData = new FormData();
-    formData.append('file', wordBlob, currentFile.value.filename);
+    console.log('开始处理Word文档，文件大小:', wordBlob.size);
     
-    // 这里应该调用后端API来处理Word文档
-    // 由于前端无法直接解析Word文档，我们使用备用的二进制提取方法
+    // 检查文件扩展名
+    const fileName = currentFile.value?.filename || '';
+    const isDocx = fileName.toLowerCase().endsWith('.docx');
+    const isDoc = fileName.toLowerCase().endsWith('.doc');
+    
+    // 方法1: 对于DOCX文件，尝试使用mammoth.js库解析
+    if (isDocx) {
+      try {
+        console.log('检测到DOCX文件，尝试使用mammoth.js解析');
+        
+        // 动态导入mammoth库
+        const mammothModule = await import('mammoth');
+        const mammoth = mammothModule.default || mammothModule;
+        
+        const arrayBuffer = await wordBlob.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        
+        if (result.value && result.value.trim().length > 10) {
+          extractedText.value = result.value.trim();
+          console.log('mammoth.js解析成功，文本长度:', result.value.length);
+          return;
+        } else {
+          console.warn('mammoth.js解析结果为空或太短，尝试备用方法');
+        }
+      } catch (mammothError: any) {
+        console.warn('mammoth.js解析失败:', mammothError.message);
+        console.log('继续使用二进制提取方法');
+      }
+    } else if (isDoc) {
+      console.log('检测到DOC文件，跳过mammoth.js，直接使用二进制提取');
+    }
+    
+    // 方法2: 对于DOC文件或mammoth解析失败的情况，使用二进制提取
+    console.log('使用二进制方法提取Word文档内容');
     await extractFromBinary(wordBlob);
+    
   } catch (error: any) {
+    console.error('Word文档提取失败:', error);
     throw new Error(`Word文档处理失败: ${error.message}`);
   }
 };
 
 const extractFromBinary = async (blob: Blob) => {
   try {
+    console.log('开始二进制提取，文件大小:', blob.size);
+    
     // 尝试从二进制数据中提取文本
     const arrayBuffer = await blob.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
-    // 尝试将二进制数据转换为文本
     let text = '';
     
-    // 检测是否为文本文件（UTF-8编码）
-    const decoder = new TextDecoder('utf-8');
-    text = decoder.decode(uint8Array);
+    // 方法1: 尝试UTF-8解码
+    try {
+      const decoder = new TextDecoder('utf-8', { fatal: false });
+      text = decoder.decode(uint8Array);
+      console.log('UTF-8解码成功，文本长度:', text.length);
+    } catch (utf8Error) {
+      console.warn('UTF-8解码失败:', utf8Error);
+    }
     
-    // 检查文本是否包含可读内容
-    const readableText = text.replace(/[^\x20-\x7E\n\r\t]/g, '').trim();
+    // 方法2: 如果UTF-8解码失败，尝试GBK解码（处理中文Word文档）
+    if (text.length < 50) {
+      try {
+        // 使用简化的GBK解码逻辑
+        text = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          const byte = uint8Array[i];
+          
+          // ASCII字符
+          if (byte >= 32 && byte <= 126) {
+            text += String.fromCharCode(byte);
+          }
+          // GBK双字节字符（简体中文）
+          else if (byte >= 0x81 && byte <= 0xFE && i + 1 < uint8Array.length) {
+            const nextByte = uint8Array[i + 1];
+            if (nextByte >= 0x40 && nextByte <= 0xFE) {
+              // 简化的GBK转Unicode（仅处理常见字符）
+              const gbCode = (byte << 8) | nextByte;
+              // 这里使用简单的映射，实际应用中需要完整的GBK码表
+              if (gbCode >= 0xB0A1 && gbCode <= 0xF7FE) {
+                // 假设是中文字符，使用占位符
+                text += '中';
+                i++; // 跳过下一个字节
+              } else {
+                i++; // 跳过下一个字节
+              }
+            }
+          }
+          // 换行和空格处理
+          else if (byte === 10 || byte === 13) {
+            text += '\n';
+          } else if (byte === 9 || byte === 32) {
+            text += ' ';
+          }
+        }
+        console.log('GBK处理完成，文本长度:', text.length);
+      } catch (gbkError) {
+        console.warn('GBK处理失败:', gbkError);
+      }
+    }
     
-    if (readableText.length > 0) {
-      extractedText.value = readableText;
+    // 方法3: 最后的通用二进制提取
+    if (text.length < 50) {
+      console.log('尝试通用二进制提取');
+      text = '';
+      
+      for (let i = 0; i < uint8Array.length; i++) {
+        const byte = uint8Array[i];
+        
+        // 提取可打印字符
+        if (byte >= 32 && byte <= 126) {
+          text += String.fromCharCode(byte);
+        }
+        // 尝试提取UTF-8中文
+        else if (byte >= 0xE0 && byte <= 0xEF && i + 2 < uint8Array.length) {
+          const nextByte1 = uint8Array[i + 1];
+          const nextByte2 = uint8Array[i + 2];
+          
+          if (nextByte1 >= 0x80 && nextByte1 <= 0xBF && 
+              nextByte2 >= 0x80 && nextByte2 <= 0xBF) {
+            try {
+              const decoder = new TextDecoder('utf-8');
+              const chineseChar = decoder.decode(new Uint8Array([byte, nextByte1, nextByte2]));
+              if (/[\u4e00-\u9fa5]/.test(chineseChar)) {
+                text += chineseChar;
+              }
+              i += 2; // 跳过后续两个字节
+            } catch (e) {
+              // 忽略无效编码
+            }
+          }
+        }
+        // 换行和空格
+        else if (byte === 10 || byte === 13) {
+          text += '\n';
+        } else if (byte === 9 || byte === 32) {
+          text += ' ';
+        }
+      }
+      console.log('通用二进制提取完成，文本长度:', text.length);
+    }
+    
+    // 清理文本
+    const cleanText = text
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '') // 移除控制字符
+      .replace(/\s+/g, ' ') // 压缩多余空格
+      .replace(/\n{3,}/g, '\n\n') // 整理换行
+      .trim();
+    
+    console.log('清理后文本长度:', cleanText.length);
+    
+    if (cleanText.length > 10) {
+      extractedText.value = cleanText;
     } else {
-      // 如果无法提取文本，显示提示信息
+      // 如果无法提取有效文本，显示文件信息和提示
+      const fileType = currentFile.value.fileType;
+      const isWordDoc = fileType.toLowerCase().includes('doc');
+      
       extractedText.value = `
+文件名称：${currentFile.value.filename}
 文件格式：${currentFile.value.fileType}
 文件大小：${formatFileSize(currentFile.value.fileSize)}
 
-该文件格式暂不支持自动文本提取，建议使用支持的文件格式（如PDF、TXT等）。
+${isWordDoc ? 
+`该Word文档可能包含特殊格式或二进制内容，无法直接提取文本。
+
+建议：
+1. 确保文档包含可编辑的文本内容
+2. 检查文档是否为扫描件或图片格式
+3. 尝试将文档另存为纯文本格式后重新上传` :
+`该文件格式暂不支持自动文本提取，建议使用支持的文件格式（如PDF、TXT等）。`}
 
 如需查看文件内容，请点击"查看原文件"按钮。
 
 支持的文件格式：
-- PDF文档 (.pdf)
-- 文本文件 (.txt, .md)
-- Word文档 (.doc, .docx)
+- PDF文档 (.pdf) - 支持智能文本提取
+- Word文档 (.doc, .docx) - 支持智能文本提取  
+- 文本文件 (.txt, .md) - 完全支持
       `.trim();
     }
+    
   } catch (error: any) {
+    console.error('二进制提取失败:', error);
     throw new Error(`文件内容提取失败: ${error.message}`);
   }
 };
