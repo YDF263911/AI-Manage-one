@@ -56,7 +56,7 @@
           @click="extractText"
           :loading="extracting"
         >
-          {{ fromCache.value ? '重新提取' : (extractedText.value ? '重新提取' : '智能提取') }}
+          {{ fromCache ? '重新提取' : (extractedText ? '重新提取' : '智能提取') }}
         </el-button>
         <el-button 
           type="success" 
@@ -74,7 +74,7 @@
           刷新
         </el-button>
         <el-button 
-          v-if="fromCache.value && extractedText.value"
+          v-if="fromCache && extractedText"
           type="warning" 
           :icon="MagicStick" 
           @click="forceReExtract"

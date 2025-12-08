@@ -441,38 +441,7 @@ const loadAnalysisResult = async () => {
       }
     }
 
-    // 3. 合并数据
-    if (analysisData) {
-      // 有分析结果
-      analysisResult.value = {
-        ...contractData,
-        risk_score: analysisData.confidence_score * 100,
-        risk_level: analysisData.overall_risk_level,
-        analysis_time: analysisData.analysis_time,
-        summary: analysisData.risk_summary || "分析完成",
-        analysis_data: analysisData.analysis_result,
-      };
 
-      progress.value = 100; // 分析完成
-      isPolling.value = false; // 停止轮询
-
-      // 处理分析结果数据
-      processAnalysisData(analysisData.analysis_result);
-    } else {
-      // 没有分析结果，显示分析中状态
-      analysisResult.value = {
-        ...contractData,
-        risk_score: 0,
-        risk_level: "uploaded",
-        analysis_time: 0,
-        summary: "合同正在分析中，请稍候查看...",
-      };
-
-      // 开始轮询检查分析结果
-      if (!isPolling.value) {
-        startPolling(contractId);
-      }
-    }
 
     // 初始化图表
     await nextTick();
