@@ -291,7 +291,8 @@ router.get('/:contractId', protect, async (req, res) => {
 
     // 通过后端数据库服务查询，绕过RLS限制
     const analysis = await DatabaseService.select('contract_analysis', {
-      contract_id: contractId
+      contract_id: contractId,
+      user_id: req.user.id  // 确保查询条件与权限检查一致
     });
 
     if (!analysis.length) {

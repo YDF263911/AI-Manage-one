@@ -367,7 +367,7 @@ const extractText = async () => {
         const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/extract/text/${contractId}`, {
           method: 'POST',
           headers,
-          credentials: 'include'
+          // credentials: 'include' // 移除凭据模式，避免CORS错误
         });
 
         if (!response.ok) {
@@ -1224,7 +1224,7 @@ const forceExtractWithCache = async () => {
         'Authorization': localStorage.getItem('token') || ''
       },
       body: JSON.stringify({ force: true }),
-      credentials: 'include'
+      // credentials: 'include' // 移除凭据模式，避免CORS错误
     });
 
     if (!response.ok) {

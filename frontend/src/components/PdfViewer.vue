@@ -227,14 +227,38 @@ const fetchWithRetry = async (
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
 
     try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          Accept: "application/pdf",
-          "Cache-Control": "no-cache",
-        },
-        credentials: "include", // 包含cookies等凭证
-      });
+      // 检查是否为Supabase存储URL，如果是则使用后端代理
+      if (url.includes('supabase.co/storage/v1/object/public/')) {
+        // 使用后端API代理下载PDF文件，避免CORS问题
+        const filePath = url.split('public/')[1];
+        const proxyUrl = `/api/storage/download/${encodeURIComponent(filePath)}`;
+        
+        const response = await fetch(proxyUrl, {
+          signal: controller.signal,
+          headers: {
+            Accept: "application/pdf",
+            "Cache-Control": "no-cache",
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          credentials: "same-origin", // 同源请求
+        });
+
+        clearTimeout(timeoutId);
+        return response;
+      } else {
+        // 其他URL使用常规请求
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            Accept: "application/pdf",
+            "Cache-Control": "no-cache",
+          },
+          credentials: "same-origin", // 同源请求
+        });
+
+        clearTimeout(timeoutId);
+        return response;
+      }
 
       clearTimeout(timeoutId);
       return response;

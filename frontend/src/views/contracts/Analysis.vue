@@ -385,25 +385,60 @@ const loadAnalysisResult = async () => {
   }
 
   try {
-    // 1. 获取合同基本信息
-    const { data: contractData, error: contractError } = await supabase
-      .from("contracts")
-      .select("*")
-      .eq("id", contractId)
-      .single();
+    // 使用后端API代理，避免直接调用Supabase REST API
+    // 1. 获取合同基本信息和分析结果
+    const response = await fetch(`/api/analysis/${contractId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
 
-    if (contractError) throw contractError;
+    if (!response.ok) {
+      throw new Error(`HTTP错误! 状态码: ${response.status}`);
+    }
 
-    // 2. 获取分析结果
-    const { data: analysisData, error: analysisError } = await supabase
-      .from("contract_analysis")
-      .select("*")
-      .eq("contract_id", contractId)
-      .single();
+    const result = await response.json();
 
-    if (analysisError && analysisError.code !== "PGRST116") {
-      // PGRST116 表示记录不存在，这是正常情况
-      throw analysisError;
+    if (!result.success) {
+      throw new Error(result.message || '获取分析结果失败');
+    }
+
+    // 如果后端返回完整数据
+    if (result.data) {
+      const analysisData = result.data;
+      
+      // 合并数据
+      analysisResult.value = {
+        ...analysisData.contract_info || {},
+        risk_score: analysisData.confidence_score * 100,
+        risk_level: analysisData.overall_risk_level,
+        analysis_time: analysisData.analysis_time,
+        summary: analysisData.risk_summary || "分析完成",
+        analysis_data: analysisData.analysis_result,
+        file_path: analysisData.contract_info?.file_path,
+        filename: analysisData.contract_info?.filename
+      };
+
+      progress.value = 100; // 分析完成
+      isPolling.value = false; // 停止轮询
+
+      // 处理分析结果数据
+      processAnalysisData(analysisData.analysis_result);
+    } else {
+      // 没有分析结果，显示分析中状态
+      analysisResult.value = {
+        risk_score: 0,
+        risk_level: "uploaded",
+        analysis_time: 0,
+        summary: "合同正在分析中，请稍候查看...",
+      };
+
+      // 开始轮询检查分析结果
+      if (!isPolling.value) {
+        startPolling(contractId);
+      }
     }
 
     // 3. 合并数据
@@ -463,13 +498,20 @@ const startPolling = (contractId: string) => {
         progress.value += Math.floor(Math.random() * 10) + 5;
       }
 
-      const { data: analysisData, error } = await supabase
-        .from("contract_analysis")
-        .select("*")
-        .eq("contract_id", contractId)
-        .single();
+      // 使用后端API代理检查分析结果
+      const response = await fetch(`/api/analysis/${contractId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
 
-      if (!error || error.code !== "PGRST116") {
+      if (response.ok) {
+        const result = await response.json();
+        
+        // 如果后端返回数据且状态正常，说明分析已完成
+        if (result.success && result.data) {
         // 分析完成
         progress.value = 100;
         isPolling.value = false;

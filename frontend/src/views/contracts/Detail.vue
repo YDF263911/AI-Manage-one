@@ -339,11 +339,22 @@ const loadRiskDetails = async () => {
       // 兼容多种AI分析结果格式
       let majorRisks = [];
       
-      // 1. 优先检查 major_risks 字段
+      // 1. 优先检查 major_risks 字段（新格式）
       if (analysisResult?.major_risks && Array.isArray(analysisResult.major_risks)) {
         majorRisks = analysisResult.major_risks;
       }
-      // 2. 检查 risk_assessment.risk_items 字段
+      // 2. 检查 risks 字段（另一种格式）
+      else if (analysisResult?.risks && Array.isArray(analysisResult.risks)) {
+        // 兼容risks数组格式
+        majorRisks = analysisResult.risks.map((item: any) => ({
+          type: item.title || item.type || "合同风险",
+          description: item.description || "风险描述",
+          clause: item.clause || "相关条款",
+          severity: item.severity || item.risk_level || "medium",
+          suggestion: item.suggestion || "修改建议"
+        }));
+      }
+      // 3. 检查 risk_assessment.risk_items 字段（旧格式）
       else if (analysisResult?.risk_assessment?.risk_items && Array.isArray(analysisResult.risk_assessment.risk_items)) {
         // 兼容旧格式
         majorRisks = analysisResult.risk_assessment.risk_items.map((item: any) => ({
@@ -354,12 +365,12 @@ const loadRiskDetails = async () => {
           suggestion: item.suggestion || "修改建议"
         }));
       }
-      // 3. 检查直接的 risk_items 字段
+      // 4. 检查直接的 risk_items 字段
       else if (analysisResult?.risk_items && Array.isArray(analysisResult.risk_items)) {
         // 兼容其他格式
         majorRisks = analysisResult.risk_items;
       }
-      // 4. 检查合规性问题
+      // 5. 检查合规性问题
       else if (analysisResult?.compliance_issues && Array.isArray(analysisResult.compliance_issues)) {
         majorRisks = analysisResult.compliance_issues.map((issue: any) => ({
           type: "合规问题",
@@ -369,7 +380,7 @@ const loadRiskDetails = async () => {
           suggestion: issue.suggestion || "建议进行合规性审查"
         }));
       }
-      // 5. 检查缺失条款
+      // 6. 检查缺失条款
       else if (analysisResult?.missing_clauses && Array.isArray(analysisResult.missing_clauses)) {
         majorRisks = analysisResult.missing_clauses.map((clause: string, index: number) => ({
           type: "缺失条款",
@@ -378,6 +389,18 @@ const loadRiskDetails = async () => {
           severity: "medium",
           suggestion: "建议补充缺失的合同条款"
         }));
+      }
+      // 7. 检查compliance_checks字段
+      else if (analysisResult?.compliance_checks && Array.isArray(analysisResult.compliance_checks)) {
+        majorRisks = analysisResult.compliance_checks
+          .filter((check: any) => check.status !== 'pass') // 只显示不通过的项目
+          .map((check: any) => ({
+            type: "合规检查",
+            description: check.description || check.item || "合规性问题",
+            clause: "合同整体",
+            severity: "medium",
+            suggestion: "请进行合规性审查"
+          }));
       }
       
       if (majorRisks.length > 0) {
