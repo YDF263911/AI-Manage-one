@@ -481,30 +481,23 @@ const startPolling = (contractId: string) => {
         
         // 如果后端返回数据且状态正常，说明分析已完成
         if (result.success && result.data) {
-        // 分析完成
-        progress.value = 100;
-        isPolling.value = false;
-        clearInterval(pollInterval);
+          // 分析完成
+          progress.value = 100;
+          isPolling.value = false;
+          clearInterval(pollInterval);
 
-        // 重新加载分析结果
-        await loadAnalysisResult();
+          // 重新加载分析结果
+          await loadAnalysisResult();
 
-        // 显示成功消息
-        ElMessage.success("合同分析已完成");
+          // 显示成功消息
+          ElMessage.success("合同分析已完成");
+        }
       }
     } catch (err) {
       console.error("轮询分析结果失败:", err);
       // 轮询失败继续尝试，直到手动停止或分析完成
     }
   }, 3000); // 每3秒轮询一次
-
-  // 清理函数
-  onMounted(() => {
-    return () => {
-      isPolling.value = false;
-      clearInterval(pollInterval);
-    };
-  });
 };
 
 // 处理分析结果数据
