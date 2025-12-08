@@ -90,7 +90,9 @@
           <el-form-item label="模板内容" prop="content">
             <div class="template-editor">
               <div class="editor-toolbar">
-
+                <el-button size="small" type="primary" :loading="generating" @click="generateTemplate">
+                  <el-icon><Cpu /></el-icon> AI辅助生成
+                </el-button>
 
                 <el-button-group style="margin-left: 10px">
                   <el-button size="small" @click="insertText('甲方', '甲方：___________')">甲方</el-button>
@@ -206,10 +208,11 @@
 <script setup lang="ts">
 import { ref, reactive, nextTick, onMounted } from "vue";
 import { useRouter } from "vue-router";
-import { ElMessage, type FormInstance, type FormRules } from "element-plus";
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from "element-plus";
 // 图标已在main.ts中全局注册，无需单独导入
 import { useAuthStore } from "@/stores/auth";
 import { useTemplateStore } from "@/stores/template";
+import { aiApi } from "@/api/aiApi";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -218,6 +221,7 @@ const templateStore = useTemplateStore();
 const formRef = ref<FormInstance>();
 const editorRef = ref<any>();
 const submitting = ref(false);
+const generating = ref(false);
 
 // 定义模板类型的联合类型
 type TemplateCategory = "purchase" | "sales" | "service" | "employment" | "nda" | "lease" | "partnership" | "other";
@@ -341,6 +345,64 @@ const addVariable = () => {
 
 const removeVariable = (index: number) => {
   templateForm.variables.splice(index, 1);
+};
+
+// AI辅助生成模板
+const generateTemplate = async () => {
+  try {
+    // 确认是否覆盖当前内容
+    if (templateForm.content.trim() || templateForm.variables.length > 2) {
+      await ElMessageBox.confirm(
+        'AI生成模板将覆盖当前内容，是否继续？',
+        '确认生成',
+        {
+          confirmButtonText: '继续',
+          cancelButtonText: '取消',
+          type: 'warning',
+        }
+      );
+    }
+
+    generating.value = true;
+    ElMessage.info('AI正在生成模板，请稍候...');
+
+    // 调用AI API生成模板
+    const templateData = await aiApi.generateContractTemplate(
+      templateForm.type,
+      templateForm.description
+    );
+    
+    // 更新模板内容
+    templateForm.content = templateData.content;
+    
+    // 更新模板变量
+    if (templateData.variables && Array.isArray(templateData.variables)) {
+      templateForm.variables = templateData.variables.map((v: any) => ({
+        name: v.name,
+        label: v.label,
+        default_value: v.default_value || '',
+      }));
+    }
+
+    // 显示生成成功提示和使用建议
+    const tips = templateData.tips || [];
+    if (tips.length > 0) {
+      const tipsContent = tips.map((tip: string, index: number) => `${index + 1}. ${tip}`).join('\n');
+      ElMessageBox.success({
+        title: '模板生成成功',
+        message: `已生成完整的${templateForm.type}模板\n\n使用提示：\n${tipsContent}`,
+        type: 'success',
+      });
+    } else {
+      ElMessage.success('模板生成成功');
+    }
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error(error.response?.data?.message || '模板生成失败，请重试');
+    }
+  } finally {
+    generating.value = false;
+  }
 };
 
 

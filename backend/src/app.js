@@ -84,6 +84,7 @@ app.use('/api/contracts', contractRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/ai', aiRoutes);
 app.use('/api/file', fileViewerRoutes);
 app.use('/api/extract', extractRoutes);
 

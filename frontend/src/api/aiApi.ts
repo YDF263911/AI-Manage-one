@@ -1,4 +1,4 @@
-import axios from "axios";
+import api from "@/utils/api";
 import type { AxiosResponse } from "axios";
 
 // AI分析结果类型定义
@@ -57,7 +57,7 @@ export interface QAResult {
 
 // AI API调用类
 export class AIApi {
-  private baseURL = "/api/ai";
+  private baseURL = "/ai";
 
   /**
    * 分析合同风险
@@ -66,7 +66,7 @@ export class AIApi {
     contractText: string,
     contractId?: string,
   ): Promise<AxiosResponse> {
-    return axios.post(`${this.baseURL}/analyze-risk`, {
+    return api.post(`${this.baseURL}/analyze-risk`, {
       contractText,
       contractId,
     });
@@ -79,7 +79,7 @@ export class AIApi {
     contractText: string,
     contractId?: string,
   ): Promise<AxiosResponse> {
-    return axios.post(`${this.baseURL}/extract-clauses`, {
+    return api.post(`${this.baseURL}/extract-clauses`, {
       contractText,
       contractId,
     });
@@ -93,7 +93,7 @@ export class AIApi {
     contractText: string,
     contractId?: string,
   ): Promise<AxiosResponse> {
-    return axios.post(`${this.baseURL}/contract-qa`, {
+    return api.post(`${this.baseURL}/contract-qa`, {
       question,
       contractText,
       contractId,
@@ -104,7 +104,7 @@ export class AIApi {
    * 通用AI聊天
    */
   async chat(message: string, history: any[] = []): Promise<AxiosResponse> {
-    return axios.post(`${this.baseURL}/chat`, {
+    return api.post(`${this.baseURL}/chat`, {
       message,
       history,
     });
@@ -114,7 +114,7 @@ export class AIApi {
    * 检查AI服务健康状态
    */
   async checkHealth(): Promise<AxiosResponse> {
-    return axios.get(`${this.baseURL}/health`);
+    return api.get(`${this.baseURL}/health`);
   }
 
   /**
@@ -146,6 +146,23 @@ export class AIApi {
         contractId,
       };
     }
+  }
+
+  /**
+   * 辅助生成合同模板
+   */
+  async generateContractTemplate(
+    templateType: string,
+    description: string = "",
+  ) {
+    return api.post(`${this.baseURL}/generate-template`, {
+      templateType,
+      description,
+    }, {
+      headers: {
+        'x-user-id': 'test-user-id-123'
+      }
+    });
   }
 }
 

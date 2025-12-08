@@ -16,21 +16,24 @@ const api = axios.create({
 api.interceptors.request.use(
   async (config) => {
     try {
-      // 优先从Supabase会话获取最新token
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+      // 检查是否已经设置了x-user-id头，如果有则不覆盖
+      if (!config.headers['x-user-id']) {
+        // 优先从Supabase会话获取最新token
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
 
-      if (!sessionError && session?.access_token) {
-        const token = session.access_token;
-        localStorage.setItem("token", token);
-        config.headers.Authorization = `Bearer ${token}`;
-      } else {
-        // 回退到本地存储的token
-        const token = localStorage.getItem("token");
-        if (token) {
+        if (!sessionError && session?.access_token) {
+          const token = session.access_token;
+          localStorage.setItem("token", token);
           config.headers.Authorization = `Bearer ${token}`;
+        } else {
+          // 回退到本地存储的token
+          const token = localStorage.getItem("token");
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
         }
       }
 

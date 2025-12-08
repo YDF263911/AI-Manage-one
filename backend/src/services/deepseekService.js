@@ -1,5 +1,6 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { jsonrepair } from 'jsonrepair';
 
 // 加载环境变量
 dotenv.config();
@@ -21,7 +22,7 @@ class DeepSeekService {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
       },
-      timeout: 60000, // 60秒超时
+      timeout: 120000, // 120秒超时，适应AI生成合同模板的耗时操作
     });
   }
 
@@ -130,7 +131,7 @@ ${contractText}
     if (response.success) {
       try {
         // 解析JSON响应
-        const jsonContent = response.message.replace(/```json\n?|\n?```/g, '').trim();
+        let jsonContent = response.message.replace(/```json\n?|\n?```/g, '').trim();
         const analysisResult = JSON.parse(jsonContent);
         
         return {
@@ -140,11 +141,40 @@ ${contractText}
         };
       } catch (parseError) {
         console.error('JSON解析错误:', parseError);
-        return {
-          success: false,
-          error: 'AI响应格式错误',
-          raw_response: response.message
-        };
+        
+        // 获取原始响应并处理
+        let jsonContent = response.message;
+        console.log('Raw AI response:', jsonContent);
+        
+        // 移除可能的JSON标记和多余空白
+        jsonContent = jsonContent.replace(/```json\n?|\n?```/g, '').trim();
+        console.error('Processed JSON content:', jsonContent);
+        
+        // 使用jsonrepair库修复JSON
+        try {
+          const repairedJson = jsonrepair(jsonContent);
+          console.log('Repaired JSON content:', repairedJson);
+          
+          const fixedResult = JSON.parse(repairedJson);
+          return {
+            success: true,
+            analysis: fixedResult,
+            usage: response.usage,
+            warning: 'AI响应格式存在问题，已使用jsonrepair自动修复'
+          };
+        } catch (repairError) {
+          console.error('JSON修复失败:', repairError);
+          
+          // 修复失败，返回详细错误信息
+          return {
+            success: false,
+            error: 'AI响应格式错误',
+            parse_error: parseError.message,
+            repair_error: repairError.message,
+            raw_response: response.message,
+            processed_response: jsonContent
+          };
+        }
       }
     }
     
@@ -191,7 +221,7 @@ ${contractText}
     
     if (response.success) {
       try {
-        const jsonContent = response.message.replace(/```json\n?|\n?```/g, '').trim();
+        let jsonContent = response.message.replace(/```json\n?|\n?```/g, '').trim();
         const extractionResult = JSON.parse(jsonContent);
         
         return {
@@ -201,11 +231,151 @@ ${contractText}
         };
       } catch (parseError) {
         console.error('JSON解析错误:', parseError);
+        
+        // 获取原始响应并处理
+        let jsonContent = response.message;
+        console.log('Raw AI response:', jsonContent);
+        
+        // 移除可能的JSON标记和多余空白
+        jsonContent = jsonContent.replace(/```json\n?|\n?```/g, '').trim();
+        console.error('Processed JSON content:', jsonContent);
+        
+        // 使用jsonrepair库修复JSON
+        try {
+          const repairedJson = jsonrepair(jsonContent);
+          console.log('Repaired JSON content:', repairedJson);
+          
+          const fixedResult = JSON.parse(repairedJson);
+          return {
+            success: true,
+            extraction: fixedResult,
+            usage: response.usage,
+            warning: 'AI响应格式存在问题，已使用jsonrepair自动修复'
+          };
+        } catch (repairError) {
+          console.error('JSON修复失败:', repairError);
+          
+          // 修复失败，返回详细错误信息
+          return {
+            success: false,
+            error: 'AI响应格式错误',
+            parse_error: parseError.message,
+            repair_error: repairError.message,
+            raw_response: response.message,
+            processed_response: jsonContent
+          };
+        }
+      }
+    }
+    
+    return response;
+  }
+
+  /**
+   * 辅助生成合同模板
+   * @param {string} templateType - 模板类型
+   * @param {string} description - 模板描述
+   * @returns {Promise<Object>} - 生成结果
+   */
+  async generateContractTemplate(templateType, description = '') {
+    // 构建生成模板的提示词
+    const prompt = `
+你是一位专业的合同模板起草专家，请根据以下要求生成一份规范、完整的合同模板：
+
+模板类型：${templateType}
+模板描述：${description}
+
+请按照以下格式返回结果：
+{
+  "content": "合同模板的完整内容",
+  "variables": [
+    {
+      "name": "变量名",
+      "label": "显示名称",
+      "description": "变量说明",
+      "default_value": "默认值"
+    }
+  ],
+  "tips": ["使用提示1", "使用提示2"]
+}
+
+要求：
+1. 合同内容结构完整，包含所有必要的条款
+2. 使用{{变量名}}格式标记动态变量
+3. 提供详细的变量定义，包括名称、显示名称、说明和默认值
+4. 给出实用的使用提示
+5. 确保合同内容符合相关法律法规
+6. 返回纯JSON格式，不要包含其他文本
+
+例如：
+{
+  "content": "甲方：{{party_a}}\\n乙方：{{party_b}}\\n...",
+  "variables": [
+    {
+      "name": "party_a",
+      "label": "甲方名称",
+      "description": "合同甲方的全称",
+      "default_value": ""
+    }
+  ],
+  "tips": ["请确保填写完整的甲乙双方信息", "金额部分请使用大写和小写同时标注"]
+}
+    `;
+
+    const response = await this.sendMessage(prompt);
+    
+    if (response.success) {
+      try {
+        let jsonContent = response.message;
+        console.log('Raw AI response:', jsonContent);
+        
+        // 移除可能的JSON标记和多余空白
+        jsonContent = jsonContent.replace(/```json\n?|\n?```/g, '').trim();
+        
+        // 尝试解析JSON
+        const templateResult = JSON.parse(jsonContent);
+        
         return {
-          success: false,
-          error: 'AI响应格式错误',
-          raw_response: response.message
+          success: true,
+          template: templateResult,
+          usage: response.usage
         };
+      } catch (parseError) {
+        console.error('JSON解析错误:', parseError);
+        
+        // 获取原始响应并处理
+        let jsonContent = response.message;
+        console.log('Raw AI response:', jsonContent);
+        
+        // 移除可能的JSON标记和多余空白
+        jsonContent = jsonContent.replace(/```json\n?|\n?```/g, '').trim();
+        console.error('Processed JSON content:', jsonContent);
+        
+        // 使用jsonrepair库修复JSON
+        try {
+          const repairedJson = jsonrepair(jsonContent);
+          console.log('Repaired JSON content:', repairedJson);
+          
+          const fixedResult = JSON.parse(repairedJson);
+          return {
+            success: true,
+            template: fixedResult,
+            usage: response.usage,
+            warning: 'AI响应格式存在问题，已使用jsonrepair自动修复'
+          };
+        } catch (repairError) {
+          console.error('JSON修复失败:', repairError);
+          
+          // 修复失败，返回详细错误信息
+          return {
+            success: false,
+            error: 'AI响应格式错误',
+            parse_error: parseError.message,
+            repair_error: repairError.message,
+            raw_response: response.message,
+            processed_response: jsonContent
+          };
+        }
       }
     }
     

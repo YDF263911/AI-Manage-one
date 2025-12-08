@@ -169,6 +169,49 @@ router.get('/health', async (req, res) => {
 });
 
 /**
+ * @route POST /api/ai/generate-template
+ * @desc 辅助生成合同模板
+ * @access Private
+ */
+router.post('/generate-template', async (req, res) => {
+  try {
+    const { templateType, description = '' } = req.body;
+
+    if (!templateType) {
+      return res.status(400).json({
+        success: false,
+        message: '模板类型不能为空'
+      });
+    }
+
+    // 调用DeepSeek服务生成合同模板
+    const result = await DeepSeekService.generateContractTemplate(templateType, description);
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: '生成模板失败',
+        error: result.error
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.template,
+      usage: result.usage
+    });
+
+  } catch (error) {
+    console.error('生成合同模板错误:', error);
+    res.status(500).json({
+      success: false,
+      message: '服务器内部错误',
+      error: error.message
+    });
+  }
+});
+
+/**
  * @route POST /api/ai/chat
  * @desc 通用DeepSeek AI聊天接口
  * @access Private
