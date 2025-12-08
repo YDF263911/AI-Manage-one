@@ -19,7 +19,7 @@
                 {{ getStatusText(contractDetail?.status) }}
               </el-tag>
               <el-tag
-                v-if="contractDetail?.risk_level !== 'pending'"
+                v-if="contractDetail?.status === 'analyzed' && contractDetail?.risk_level"
                 :type="getRiskType(contractDetail?.risk_level)"
               >
                 {{ getRiskText(contractDetail?.risk_level) }}
@@ -62,26 +62,26 @@
                 getTypeText(contractDetail?.category)
               }}</el-descriptions-item>
               <el-descriptions-item label="甲方">{{
-                contractDetail?.party_a || "未填写"
+                contractDetail?.contract_parties?.party_a || "未填写"
               }}</el-descriptions-item>
               <el-descriptions-item label="乙方">{{
-                contractDetail?.party_b || "未填写"
+                contractDetail?.contract_parties?.party_b || "未填写"
               }}</el-descriptions-item>
               <el-descriptions-item label="合同金额">{{
-                contractDetail?.amount
-                  ? `¥${contractDetail.amount.toLocaleString()}`
+                contractDetail?.contract_amount
+                  ? `¥${contractDetail.contract_amount.toLocaleString()}`
                   : "未填写"
               }}</el-descriptions-item>
               <el-descriptions-item label="合同期限">
                 {{
-                  contractDetail?.start_date
-                    ? formatDate(contractDetail.start_date)
+                  contractDetail?.effective_date
+                    ? formatDate(contractDetail.effective_date)
                     : "未设置"
                 }}
                 ~
                 {{
-                  contractDetail?.end_date
-                    ? formatDate(contractDetail.end_date)
+                  contractDetail?.expiration_date
+                    ? formatDate(contractDetail.expiration_date)
                     : "未设置"
                 }}
               </el-descriptions-item>
@@ -99,7 +99,7 @@
 
           <!-- 风险分析结果 -->
           <el-card
-            v-if="contractDetail?.risk_level && contractDetail?.risk_level !== 'pending'"
+            v-if="contractDetail?.status === 'analyzed' || riskDetails.length > 0"
             class="analysis-card"
           >
             <template #header>
@@ -108,34 +108,49 @@
 
             <div class="risk-summary">
               <div class="risk-level">
-                <h3 :class="`risk-${contractDetail?.risk_level}`">
-                  {{ getRiskLevelText(contractDetail?.risk_level) }}
+                <h3 :class="`risk-${contractDetail?.risk_level || 'medium'}`">
+                  {{ getRiskLevelText(contractDetail?.risk_level || 'medium') }}
                 </h3>
                 <p>总体风险评估</p>
               </div>
 
               <div v-if="riskDetails.length > 0" class="risk-details">
-                <h4>详细风险点</h4>
-                <el-timeline>
-                  <el-timeline-item
+                <h4>详细风险分析</h4>
+                <el-collapse v-model="activeRiskPanel">
+                  <el-collapse-item
                     v-for="(risk, index) in riskDetails"
                     :key="index"
-                    :timestamp="risk.type"
-                    :type="getRiskItemType(risk.severity)"
+                    :title="risk.type"
+                    :name="index"
                   >
-                    {{ risk.description }}
-                    <el-tag size="small" :type="getRiskTagType(risk.severity)">
-                      {{ getSeverityText(risk.severity) }}
-                    </el-tag>
-                  </el-timeline-item>
-                </el-timeline>
+                    <div class="risk-item-detail">
+                      <div class="risk-severity">
+                        <el-tag :type="getRiskItemType(risk.severity)" size="small">
+                          {{ getRiskLevelText(risk.severity) }}
+                        </el-tag>
+                      </div>
+                      
+                      <div class="risk-description">
+                        <p><strong>风险描述：</strong>{{ risk.description }}</p>
+                      </div>
+                      
+                      <div v-if="risk.clause" class="risk-clause">
+                        <p><strong>相关条款：</strong>{{ risk.clause }}</p>
+                      </div>
+                      
+                      <div v-if="risk.suggestion" class="risk-suggestion">
+                        <p><strong>修改建议：</strong>{{ risk.suggestion }}</p>
+                      </div>
+                    </div>
+                  </el-collapse-item>
+                </el-collapse>
               </div>
             </div>
           </el-card>
           
           <!-- 未分析状态 -->
           <el-card
-            v-else
+            v-if="contractDetail?.status !== 'analyzed' && riskDetails.length === 0"
             class="analysis-card"
           >
             <template #header>
@@ -244,6 +259,7 @@ import {
 } from "@element-plus/icons-vue";
 import { supabase } from "@/utils/supabase";
 import { useContractStore } from "@/stores/contract";
+import api from "@/utils/api";
 
 const route = useRoute();
 const router = useRouter();
@@ -254,6 +270,8 @@ const contractDetail = ref<any>(null);
 const editDialogVisible = ref(false);
 const riskDetails = ref<any[]>([]);
 const operationLogs = ref<any[]>([]);
+const activeRiskPanel = ref<string[]>([]);
+const isRiskLoading = ref(false);
 
 const editForm = ref({
   name: "",
@@ -283,8 +301,8 @@ const loadContractDetail = async () => {
     Object.assign(editForm.value, {
       name: data.contract_title || data.filename,
       type: data.category,
-      party_a: data.party_a,
-      party_b: data.party_b,
+      party_a: data.contract_parties?.party_a || '',
+      party_b: data.contract_parties?.party_b || '',
       amount: data.contract_amount,
       remarks: data.remarks,
     });
@@ -300,24 +318,121 @@ const loadContractDetail = async () => {
 };
 
 const loadRiskDetails = async () => {
-  // 模拟风险分析数据
-  riskDetails.value = [
-    {
-      type: "条款风险",
-      description: "付款条款存在模糊描述",
-      severity: "medium",
-    },
-    {
-      type: "法律合规",
-      description: "缺少必要的法律条款",
-      severity: "high",
-    },
-    {
-      type: "格式规范",
-      description: "合同格式符合标准",
-      severity: "low",
-    },
-  ];
+  try {
+    // 防重复调用：如果正在加载中或已加载数据，直接返回
+    if (riskDetails.value.length > 0 || isRiskLoading.value) {
+      console.log('风险详情已加载或正在加载，跳过重复调用');
+      return;
+    }
+    
+    isRiskLoading.value = true;
+    
+    // 使用后端API代理查询分析结果，绕过RLS限制
+    const response = await api.get(`/analysis/${contractId}`);
+    
+    if (response.success && response.data) {
+      const analysisData = response.data;
+      
+      // 从analysis_result字段中提取风险点
+      const analysisResult = analysisData.analysis_result;
+      
+      // 兼容多种AI分析结果格式
+      let majorRisks = [];
+      
+      // 1. 优先检查 major_risks 字段
+      if (analysisResult?.major_risks && Array.isArray(analysisResult.major_risks)) {
+        majorRisks = analysisResult.major_risks;
+      }
+      // 2. 检查 risk_assessment.risk_items 字段
+      else if (analysisResult?.risk_assessment?.risk_items && Array.isArray(analysisResult.risk_assessment.risk_items)) {
+        // 兼容旧格式
+        majorRisks = analysisResult.risk_assessment.risk_items.map((item: any) => ({
+          type: item.risk_type || "合同风险",
+          description: item.description || item.risk_description || "风险描述",
+          clause: item.clause || "相关条款",
+          severity: item.severity || item.risk_level || "medium",
+          suggestion: item.suggestion || "修改建议"
+        }));
+      }
+      // 3. 检查直接的 risk_items 字段
+      else if (analysisResult?.risk_items && Array.isArray(analysisResult.risk_items)) {
+        // 兼容其他格式
+        majorRisks = analysisResult.risk_items;
+      }
+      // 4. 检查合规性问题
+      else if (analysisResult?.compliance_issues && Array.isArray(analysisResult.compliance_issues)) {
+        majorRisks = analysisResult.compliance_issues.map((issue: any) => ({
+          type: "合规问题",
+          description: issue.issue || issue.description || "合规性问题",
+          clause: issue.clause || "相关条款",
+          severity: "medium",
+          suggestion: issue.suggestion || "建议进行合规性审查"
+        }));
+      }
+      // 5. 检查缺失条款
+      else if (analysisResult?.missing_clauses && Array.isArray(analysisResult.missing_clauses)) {
+        majorRisks = analysisResult.missing_clauses.map((clause: string, index: number) => ({
+          type: "缺失条款",
+          description: `缺失重要条款：${clause}`,
+          clause: "合同整体",
+          severity: "medium",
+          suggestion: "建议补充缺失的合同条款"
+        }));
+      }
+      
+      if (majorRisks.length > 0) {
+        riskDetails.value = majorRisks.map((risk: any, index: number) => ({
+          type: risk.type || risk.risk_type || "未知风险",
+          description: risk.description || risk.risk_description || "风险描述",
+          clause: risk.clause || "",
+          severity: risk.severity || risk.risk_level || "medium",
+          suggestion: risk.suggestion || "",
+        }));
+      } else {
+        // 如果没有风险点数据，创建更详细的默认显示
+        const riskLevel = analysisData.overall_risk_level || analysisResult?.risk_level || "未知";
+        const riskSummary = analysisData.risk_summary || analysisResult?.summary || "暂无详细分析";
+        const confidenceScore = analysisData.confidence_score || analysisResult?.risk_score || "未知";
+        
+        riskDetails.value = [
+          {
+            type: "总体风险评估",
+            description: `风险等级：${riskLevel}，置信度：${confidenceScore}`,
+            severity: riskLevel.toLowerCase() || "medium",
+          },
+          {
+            type: "风险摘要",
+            description: riskSummary,
+            severity: "info",
+          }
+        ];
+      }
+
+      // 更新合同详情中的风险等级（如果存在）
+      if (analysisData.overall_risk_level && contractDetail.value) {
+        contractDetail.value.risk_level = analysisData.overall_risk_level;
+      } else if (analysisResult?.risk_level && contractDetail.value) {
+        contractDetail.value.risk_level = analysisResult.risk_level;
+      }
+
+      console.log("成功加载分析结果:", { 
+        riskDetails: riskDetails.value, 
+        analysisData,
+        analysisResult 
+      });
+    } else {
+      // 没有分析结果，清空风险详情
+      riskDetails.value = [];
+      console.log("暂无分析结果");
+    }
+  } catch (error: any) {
+    console.error("加载风险详情失败:", error);
+    // 不再显示错误提示，避免干扰用户体验
+    riskDetails.value = [];
+  } finally {
+    // 确保加载状态被重置
+    isRiskLoading.value = false;
+  }
 };
 
 const loadOperationLogs = async () => {

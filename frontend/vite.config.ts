@@ -14,14 +14,14 @@ export default defineConfig({
     // 暂时移除PostCSS配置，确保项目能正常运行
   },
   server: {
-    port: 3001,
+    port: 3000,
     proxy: {
       "/api": {
-        target: "http://localhost:5001",
+        target: "http://localhost:5000",
         changeOrigin: true,
       },
       "/uploads": {
-        target: "http://localhost:5001",
+        target: "http://localhost:5000",
         changeOrigin: true,
       },
     },

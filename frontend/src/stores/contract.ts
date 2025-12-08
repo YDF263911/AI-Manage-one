@@ -16,6 +16,7 @@ export const useContractStore = defineStore("contract", () => {
   const currentContract = ref<Contract | null>(null);
   const contractAnalyses = ref<ContractAnalysis[]>([]);
   const isLoading = ref(false);
+  const pollingContracts = ref(new Set<string>()); // 跟踪正在轮询的合同ID
 
   // 计算属性
   const totalContracts = computed(() => contracts.value.length);
@@ -252,6 +253,14 @@ export const useContractStore = defineStore("contract", () => {
     const maxAttempts = 30; // 最大尝试次数
     const interval = 2000; // 2秒间隔
     
+    // 防重复轮询：如果已经在轮询中，直接返回
+    if (pollingContracts.value.has(contractId)) {
+      console.log(`合同 ${contractId} 已经在轮询中，跳过重复轮询`);
+      return;
+    }
+    
+    pollingContracts.value.add(contractId);
+    
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         // 检查分析状态
@@ -261,6 +270,7 @@ export const useContractStore = defineStore("contract", () => {
           // 分析完成，更新状态
           await updateContractStatus(contractId, "analyzed");
           await loadContractAnalyses(contractId);
+          pollingContracts.value.delete(contractId);
           return;
         }
         
@@ -272,10 +282,14 @@ export const useContractStore = defineStore("contract", () => {
         // 如果超过最大尝试次数，标记为分析失败
         if (attempt === maxAttempts - 1) {
           await updateContractStatus(contractId, "analyzed");
+          pollingContracts.value.delete(contractId);
           handleError(new Error("分析超时，请检查分析结果"), { customMessage: "分析超时" });
         }
       }
     }
+    
+    // 确保轮询结束后清理状态
+    pollingContracts.value.delete(contractId);
   };
 
   // 批量分析合同

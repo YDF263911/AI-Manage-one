@@ -17,38 +17,38 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. 创建合同表
+-- 2. 创建合同表（与schema.sql保持一致）
 CREATE TABLE IF NOT EXISTS contracts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    contract_number VARCHAR(100) UNIQUE NOT NULL,
-    title VARCHAR(500) NOT NULL,
-    contract_type VARCHAR(100), -- 采购合同、销售合同、服务合同等
-    status VARCHAR(50) DEFAULT 'draft', -- draft, pending, approved, signed, executed, terminated
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    filename VARCHAR(255) NOT NULL,
+    file_path TEXT NOT NULL,
+    file_size BIGINT NOT NULL,
+    file_type VARCHAR(10) NOT NULL,
+    category VARCHAR(50) DEFAULT 'other' CHECK (category IN ('purchase', 'sales', 'service', 'employment', 'nda', 'lease', 'partnership', 'other')),
+    status VARCHAR(20) DEFAULT 'uploaded' CHECK (status IN ('uploaded', 'processing', 'analyzed', 'reviewed', 'approved', 'rejected')),
     
-    -- 合同基本信息
-    party_a_name VARCHAR(255),
-    party_b_name VARCHAR(255),
+    -- 合同基本信息（AI提取）
+    contract_title VARCHAR(500),
+    contract_parties JSONB,
     contract_amount DECIMAL(15,2),
-    currency VARCHAR(10) DEFAULT 'CNY',
     effective_date DATE,
-    expiry_date DATE,
+    expiration_date DATE,
     
-    -- 文件信息
-    original_file_url TEXT,
-    parsed_file_url TEXT,
-    file_type VARCHAR(50), -- pdf, doc, docx, image
-    file_size INTEGER,
+    -- 分析信息
+    analysis_started_at TIMESTAMPTZ,
+    analysis_completed_at TIMESTAMPTZ,
+    confidence_score DECIMAL(3,2),
     
-    -- AI分析结果
-    risk_level VARCHAR(20), -- low, medium, high, critical
-    risk_score DECIMAL(3,2),
-    compliance_status VARCHAR(50), -- compliant, non_compliant, needs_review
+    -- 时间戳
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     
-    -- 元数据
-    created_by UUID REFERENCES users(id),
-    assigned_to UUID REFERENCES users(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    -- 索引
+    INDEX idx_contracts_user_id (user_id),
+    INDEX idx_contracts_status (status),
+    INDEX idx_contracts_category (category),
+    INDEX idx_contracts_created_at (created_at)
 );
 
 -- 3. 创建合同条款表
@@ -113,18 +113,34 @@ CREATE TABLE IF NOT EXISTS approval_steps (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 7. 创建分析记录表
-CREATE TABLE IF NOT EXISTS analysis_records (
+-- 7. 创建合同分析结果表（与schema.sql保持一致）
+CREATE TABLE IF NOT EXISTS contract_analysis (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    contract_id UUID REFERENCES contracts(id) ON DELETE CASCADE,
-    analysis_type VARCHAR(100), -- risk, compliance, extraction
+    contract_id UUID NOT NULL REFERENCES contracts(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     
     -- 分析结果
-    analysis_result JSONB,
-    confidence_score DECIMAL(3,2),
-    processing_time INTEGER, -- 处理时间(毫秒)
+    analysis_result JSONB NOT NULL,
+    confidence_score DECIMAL(3,2) NOT NULL,
+    analysis_time INTERVAL,
     
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    -- 风险信息
+    overall_risk_level VARCHAR(10) CHECK (overall_risk_level IN ('low', 'medium', 'high')),
+    risk_summary TEXT,
+    
+    -- 合规检查结果
+    compliance_status BOOLEAN DEFAULT TRUE,
+    compliance_issues JSONB,
+    
+    -- 时间戳
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- 索引
+    INDEX idx_analysis_contract_id (contract_id),
+    INDEX idx_analysis_user_id (user_id),
+    INDEX idx_analysis_risk_level (overall_risk_level),
+    UNIQUE (contract_id)
 );
 
 -- 8. 创建系统日志表
@@ -144,13 +160,13 @@ CREATE TABLE IF NOT EXISTS system_logs (
 );
 
 -- 创建索引以提高查询性能
+CREATE INDEX IF NOT EXISTS idx_contracts_user_id ON contracts(user_id);
 CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(status);
-CREATE INDEX IF NOT EXISTS idx_contracts_created_by ON contracts(created_by);
-CREATE INDEX IF NOT EXISTS idx_contracts_risk_level ON contracts(risk_level);
-CREATE INDEX IF NOT EXISTS idx_contract_clauses_contract_id ON contract_clauses(contract_id);
-CREATE INDEX IF NOT EXISTS idx_approval_flows_contract_id ON approval_flows(contract_id);
-CREATE INDEX IF NOT EXISTS idx_analysis_records_contract_id ON analysis_records(contract_id);
-CREATE INDEX IF NOT EXISTS idx_system_logs_created_at ON system_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_contracts_category ON contracts(category);
+CREATE INDEX IF NOT EXISTS idx_contracts_created_at ON contracts(created_at);
+CREATE INDEX IF NOT EXISTS idx_analysis_contract_id ON contract_analysis(contract_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_user_id ON contract_analysis(user_id);
+CREATE INDEX IF NOT EXISTS idx_analysis_risk_level ON contract_analysis(overall_risk_level);
 
 -- 创建更新时间触发器函数
 CREATE OR REPLACE FUNCTION update_updated_at_column()

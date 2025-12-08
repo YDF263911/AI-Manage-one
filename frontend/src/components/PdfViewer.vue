@@ -158,7 +158,7 @@ const buildFileUrl = (baseUrl: string): string[] => {
 
   // 尝试添加API基础URL前缀（如果环境变量存在）
   const apiBaseUrl =
-    import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api";
+    import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
   // 规范化URL - 移除重复的斜杠
   const normalizeUrl = (url: string): string => {
@@ -209,7 +209,7 @@ const buildFileUrl = (baseUrl: string): string[] => {
     }
     
     // 4. 可能的本地开发路径
-    urls.push(`http://localhost:5001/${cleanBaseUrl}`);
+    urls.push(`http://localhost:5000/${cleanBaseUrl}`);
   }
 
   // 去重并返回

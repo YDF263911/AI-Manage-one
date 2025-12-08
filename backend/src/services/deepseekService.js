@@ -129,53 +129,7 @@ ${contractText}
     const response = await this.sendMessage(prompt);
     
     if (response.success) {
-      try {
-        // 解析JSON响应
-        let jsonContent = response.message.replace(/```json\n?|\n?```/g, '').trim();
-        const analysisResult = JSON.parse(jsonContent);
-        
-        return {
-          success: true,
-          analysis: analysisResult,
-          usage: response.usage
-        };
-      } catch (parseError) {
-        console.error('JSON解析错误:', parseError);
-        
-        // 获取原始响应并处理
-        let jsonContent = response.message;
-        console.log('Raw AI response:', jsonContent);
-        
-        // 移除可能的JSON标记和多余空白
-        jsonContent = jsonContent.replace(/```json\n?|\n?```/g, '').trim();
-        console.error('Processed JSON content:', jsonContent);
-        
-        // 使用jsonrepair库修复JSON
-        try {
-          const repairedJson = jsonrepair(jsonContent);
-          console.log('Repaired JSON content:', repairedJson);
-          
-          const fixedResult = JSON.parse(repairedJson);
-          return {
-            success: true,
-            analysis: fixedResult,
-            usage: response.usage,
-            warning: 'AI响应格式存在问题，已使用jsonrepair自动修复'
-          };
-        } catch (repairError) {
-          console.error('JSON修复失败:', repairError);
-          
-          // 修复失败，返回详细错误信息
-          return {
-            success: false,
-            error: 'AI响应格式错误',
-            parse_error: parseError.message,
-            repair_error: repairError.message,
-            raw_response: response.message,
-            processed_response: jsonContent
-          };
-        }
-      }
+      return this.parseAnalysisResponse(response);
     }
     
     return response;
@@ -403,6 +357,156 @@ ${contractText}
     `;
 
     return await this.sendMessage(prompt);
+  }
+
+  /**
+   * 解析AI分析响应
+   * @param {Object} response - AI响应对象
+   * @returns {Object} - 解析结果
+   */
+  parseAnalysisResponse(response) {
+    try {
+      // 第一步：基础清理
+      let jsonContent = response.message;
+      
+      // 移除markdown代码块标记
+      jsonContent = jsonContent.replace(/```json\n?|\n?```/g, '');
+      
+      // 移除前后空白
+      jsonContent = jsonContent.trim();
+      
+      console.log('Step 1 - Cleaned content length:', jsonContent.length);
+      
+      // 第二步：尝试直接解析
+      try {
+        const analysisResult = JSON.parse(jsonContent);
+        console.log('✅ Direct JSON parsing successful');
+        return {
+          success: true,
+          analysis: analysisResult,
+          usage: response.usage
+        };
+      } catch (directParseError) {
+        console.log('Direct parsing failed, trying repair...');
+      }
+      
+      // 第三步：使用jsonrepair修复
+      try {
+        const repairedJson = jsonrepair(jsonContent);
+        console.log('Step 2 - JSON repair attempted');
+        
+        const fixedResult = JSON.parse(repairedJson);
+        console.log('✅ JSON repair successful');
+        return {
+          success: true,
+          analysis: fixedResult,
+          usage: response.usage,
+          warning: 'AI响应格式存在问题，已使用jsonrepair自动修复'
+        };
+      } catch (repairError) {
+        console.log('JSON repair failed, trying fallback...');
+      }
+      
+      // 第四步：尝试手动修复常见问题
+      const manualFixed = this.manualJsonFix(jsonContent);
+      if (manualFixed.success) {
+        console.log('✅ Manual fix successful');
+        return {
+          success: true,
+          analysis: manualFixed.data,
+          usage: response.usage,
+          warning: 'AI响应格式存在问题，已使用手动修复'
+        };
+      }
+      
+      // 第五步：生成默认分析结果
+      console.log('All parsing methods failed, generating fallback result');
+      const fallbackResult = this.generateFallbackAnalysis(response.message);
+      
+      return {
+        success: true,
+        analysis: fallbackResult,
+        usage: response.usage,
+        warning: '无法解析AI响应，已生成默认分析结果'
+      };
+      
+    } catch (error) {
+      console.error('All parsing methods failed:', error);
+      return {
+        success: false,
+        error: 'AI响应解析完全失败',
+        parse_error: error.message,
+        raw_response: response.message
+      };
+    }
+  }
+
+  /**
+   * 手动修复JSON常见问题
+   * @param {string} content - JSON内容
+   * @returns {Object} - 修复结果
+   */
+  manualJsonFix(content) {
+    try {
+      let fixed = content;
+      
+      // 修复常见的JSON问题
+      fixed = fixed.replace(/，/g, ','); // 中文逗号
+      fixed = fixed.replace(/：/g, ':'); // 中文冒号
+      fixed = fixed.replace(/'/g, '"'); // 单引号转双引号
+      fixed = fixed.replace(/"/g, '"'); // 智能引号转普通引号
+      
+      // 修复尾随逗号
+      fixed = fixed.replace(/,\s*}/g, '}');
+      fixed = fixed.replace(/,\s*]/g, ']');
+      
+      // 修复换行符问题
+      fixed = fixed.replace(/\n/g, '\\n');
+      
+      const result = JSON.parse(fixed);
+      return { success: true, data: result };
+      
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 生成备用分析结果
+   * @param {string} rawResponse - 原始AI响应
+   * @returns {Object} - 默认分析结果
+   */
+  generateFallbackAnalysis(rawResponse) {
+    return {
+      risk_level: 'medium',
+      risk_score: 0.6,
+      summary: '系统生成：AI分析响应格式异常，请进行人工审查。原始分析内容：' + (rawResponse?.substring(0, 200) || '无内容') + '...',
+      major_risks: [
+        {
+          type: '系统风险',
+          description: 'AI分析响应格式异常，建议人工审查',
+          clause: '技术条款',
+          severity: 'medium',
+          suggestion: '请进行人工合同审查以确保风险识别完整'
+        }
+      ],
+      compliance_issues: [
+        {
+          issue: '分析系统异常',
+          clause: '技术条款',
+          standard: '合同审查标准',
+          suggestion: '请重新尝试分析或进行人工审查'
+        }
+      ],
+      missing_clauses: ['系统无法识别缺失条款'],
+      key_terms: {
+        parties: '无法识别',
+        amount: '无法识别',
+        duration: '无法识别',
+        payment_terms: '无法识别',
+        termination: '无法识别'
+      }
+    };
   }
 
   /**

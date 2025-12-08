@@ -4,7 +4,7 @@ import { supabase } from "./supabase";
 
 // 创建axios实例
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5001/api",
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
   timeout: 90000, // 增加到90秒，适配AI分析耗时
   headers: {
     "Content-Type": "application/json",
@@ -16,24 +16,48 @@ const api = axios.create({
 api.interceptors.request.use(
   async (config) => {
     try {
-      // 检查是否已经设置了x-user-id头，如果有则不覆盖
+      // 设置x-user-id头（如果未设置）
       if (!config.headers['x-user-id']) {
-        // 优先从Supabase会话获取最新token
+        // 优先从Supabase会话获取用户ID
         const {
           data: { session },
           error: sessionError,
         } = await supabase.auth.getSession();
 
-        if (!sessionError && session?.access_token) {
-          const token = session.access_token;
-          localStorage.setItem("token", token);
-          config.headers.Authorization = `Bearer ${token}`;
+        if (!sessionError && session?.user?.id) {
+          config.headers['x-user-id'] = session.user.id;
         } else {
-          // 回退到本地存储的token
+          // 备选方案：从本地token解析用户ID
           const token = localStorage.getItem("token");
           if (token) {
-            config.headers.Authorization = `Bearer ${token}`;
+            try {
+              // 尝试从JWT token解析用户ID
+              const payload = JSON.parse(atob(token.split('.')[1]));
+              if (payload.sub) {
+                config.headers['x-user-id'] = payload.sub;
+              }
+            } catch (parseError) {
+              console.warn('解析token获取用户ID失败:', parseError);
+            }
           }
+        }
+      }
+
+      // 设置Authorization头
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (!sessionError && session?.access_token) {
+        const token = session.access_token;
+        localStorage.setItem("token", token);
+        config.headers.Authorization = `Bearer ${token}`;
+      } else {
+        // 回退到本地存储的token
+        const token = localStorage.getItem("token");
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
         }
       }
 

@@ -364,7 +364,7 @@ const extractText = async () => {
           headers['X-User-ID'] = authStore.user.id;
         }
 
-        const response = await fetch(`http://localhost:5001/api/extract/text/${contractId}`, {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/extract/text/${contractId}`, {
           method: 'POST',
           headers,
           credentials: 'include'
@@ -1217,7 +1217,7 @@ const forceExtractWithCache = async () => {
     }
     
     // 调用后端API进行强制重新提取
-    const response = await fetch(`http://localhost:5001/api/extract/text/${contractId}`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/extract/text/${contractId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

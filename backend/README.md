@@ -43,7 +43,7 @@ cp .env.example .env
 npm run dev
 ```
 
-服务器将在 http://localhost:3000 启动
+服务器将在 http://localhost:5000 启动
 
 ### 生产环境部署
 ```bash
@@ -142,7 +142,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production
 COPY . .
-EXPOSE 3000
+EXPOSE 5000
 CMD ["npm", "start"]
 ```
 
