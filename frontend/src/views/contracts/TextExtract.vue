@@ -73,13 +73,7 @@
         >
           刷新
         </el-button>
-        <el-button 
-          type="warning" 
-          :icon="View" 
-          @click="viewOriginalFile"
-        >
-          查看原文件
-        </el-button>
+
       </div>
 
       <!-- 提取结果 -->
@@ -126,9 +120,7 @@
             <el-button type="primary" @click="extractText">
               重试提取
             </el-button>
-            <el-button @click="viewOriginalFile">
-              查看原文件
-            </el-button>
+
           </div>
         </div>
         
@@ -208,7 +200,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { 
-  Document, Download, Refresh, View, 
+  Document, Download, Refresh, 
   Search, CopyDocument, Delete, Collection, Timer, MagicStick 
 } from '@element-plus/icons-vue';
 import { supabase } from "@/utils/supabase";
@@ -1075,7 +1067,7 @@ ${isWordDoc ?
 3. 尝试将文档另存为纯文本格式后重新上传` :
 `该文件格式暂不支持自动文本提取，建议使用支持的文件格式（如PDF、TXT等）。`}
 
-如需查看文件内容，请点击"查看原文件"按钮。
+如需查看文件内容，请重新上传支持的文件格式。
 
 支持的文件格式：
 - PDF文档 (.pdf) - 支持智能文本提取
@@ -1153,12 +1145,7 @@ const refreshViewer = () => {
   loadContractDetail();
 };
 
-const viewOriginalFile = () => {
-  router.push({
-    path: '/contracts/file-viewer',
-    query: { contract_id: contractId }
-  });
-};
+
 
 const formatFileSize = (bytes: number): string => {
   if (!bytes) return '0 Bytes';
