@@ -522,7 +522,7 @@ const getTypeTag = (type: string) => {
     sale: "warning",
     service: "info",
     lease: "primary",
-    other: "default",
+    other: "info",
   };
   return typeMap[type] || "info";
 };
