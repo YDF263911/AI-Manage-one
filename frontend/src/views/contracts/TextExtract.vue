@@ -212,9 +212,11 @@ import {
   Search, CopyDocument, Delete, Collection, Timer, MagicStick 
 } from '@element-plus/icons-vue';
 import { supabase } from "@/utils/supabase";
+import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
 const router = useRouter();
+const authStore = useAuthStore();
 
 const loading = ref(false);
 const extracting = ref(false);
@@ -350,12 +352,21 @@ const extractText = async () => {
       
       // 调用后端API进行文件内容提取
       try {
+        const token = localStorage.getItem('token') || authStore.user?.access_token || '';
+        const headers: any = {
+          'Content-Type': 'application/json',
+        };
+
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        } else if (authStore.user?.id) {
+          // 备用方案：传递用户ID
+          headers['X-User-ID'] = authStore.user.id;
+        }
+
         const response = await fetch(`http://localhost:5001/api/extract/text/${contractId}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': localStorage.getItem('token') || ''
-          },
+          headers,
           credentials: 'include'
         });
 

@@ -10,18 +10,62 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 // 验证JWT令牌
 export const protect = async (req, res, next) => {
   try {
-    // 暂时跳过认证检查，使用数据库中已知的UUID用户ID
-    console.log('跳过认证检查，使用真实用户ID');
+    // 首先尝试获取用户ID
+    const userId = req.headers['x-user-id'];
     
-    // 直接使用数据库中已知的真实UUID - 使用创建合同的用户ID
+    if (userId) {
+      // 使用传递的用户ID（临时解决方案）
+      req.user = {
+        id: userId,
+        email: 'user@example.com',
+        role: 'user'
+      };
+      console.log('使用传递的用户ID，用户ID:', req.user.id);
+      next();
+      return;
+    }
+
+    const authHeader = req.headers.authorization;
+    let token = null;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (authHeader) {
+      token = authHeader;
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: '未提供认证令牌',
+      });
+    }
+
+    // 验证JWT令牌
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    
+    // 通过Supabase验证用户
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+      return res.status(401).json({
+        success: false,
+        message: '无效的认证令牌',
+      });
+    }
+
+    // 设置用户信息
     req.user = {
-      id: 'af7decf3-98ad-44c4-95ab-d3bd36cb5b6f', // 数据库中实际创建合同的用户UUID
-      email: '1940916975@qq.com',
-      role: 'user'
+      id: user.id,
+      email: user.email,
+      role: 'user' // 可以从user metadata或其他地方获取角色
     };
     
+    console.log('认证成功，用户ID:', req.user.id);
     next();
   } catch (error) {
+    console.error('认证错误:', error);
+    
     res.status(401).json({
       success: false,
       message: '认证失败',

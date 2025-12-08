@@ -34,7 +34,7 @@ export const supabaseAdmin = createClient(
 export class DatabaseService {
   // 插入数据
   static async insert(table, data) {
-    const { data: result, error } = await supabase
+    const { data: result, error } = await supabaseAdmin
       .from(table)
       .insert(data)
       .select();
@@ -45,7 +45,7 @@ export class DatabaseService {
 
   // 查询数据
   static async select(table, filters = {}, options = {}) {
-    let query = supabase.from(table).select('*');
+    let query = supabaseAdmin.from(table).select('*');
     
     // 应用过滤器
     Object.entries(filters).forEach(([key, value]) => {
@@ -68,13 +68,17 @@ export class DatabaseService {
     
     const { data, error } = await query;
     
-    if (error) throw error;
+    if (error) {
+      console.error('Database select error:', error);
+      throw error;
+    }
+    console.log('Select result:', data.length, 'records');
     return data;
   }
 
   // 更新数据
   static async update(table, id, updates) {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from(table)
       .update(updates)
       .eq('id', id)
@@ -86,7 +90,7 @@ export class DatabaseService {
 
   // 删除数据
   static async delete(table, id) {
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from(table)
       .delete()
       .eq('id', id);
@@ -97,7 +101,7 @@ export class DatabaseService {
 
   // UPSERT操作（更新或插入）
   static async upsert(table, conflictColumn, data) {
-    const { data: result, error } = await supabase
+    const { data: result, error } = await supabaseAdmin
       .from(table)
       .upsert(data, {
         onConflict: conflictColumn,

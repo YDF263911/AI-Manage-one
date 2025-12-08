@@ -1,5 +1,5 @@
 import express from 'express';
-import { DatabaseService } from '../utils/supabase.js';
+import { DatabaseService, supabaseAdmin } from '../utils/supabase.js';
 import FileExtractor from '../utils/fileExtractor.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -221,6 +221,8 @@ router.post('/text/:contractId', protect, async (req, res) => {
     });
   }
 });
+
+
 
 /**
  * @route GET /api/extract/supported-formats
