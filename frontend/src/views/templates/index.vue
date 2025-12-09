@@ -88,7 +88,7 @@
           :md="8"
           :lg="6"
         >
-          <el-card class="template-card" shadow="hover">
+          <el-card class="template-card" shadow="hover" @click="viewTemplate(template)">
             <template #header>
               <div class="template-header">
                 <div class="template-title">
@@ -135,64 +135,33 @@
             </div>
 
             <template #footer>
-              <div class="template-actions">
-                <el-button size="small" @click="viewTemplate(template)"
-                  >查看</el-button
-                >
-                <el-button
-                  size="small"
-                  type="primary"
-                  @click="useTemplate(template)"
-                  >使用</el-button
-                >
-
-                <!-- 编辑按钮 -->
-                <el-button
-                  v-if="hasPermission(template, 'edit')"
-                  size="small"
-                  @click="editTemplate(template)"
-                >
-                  编辑
-                </el-button>
-                <el-button
-                  v-else
-                  size="small"
-                  disabled
-                  :title="getPermissionMessage(template, 'edit')"
-                >
-                  编辑
-                </el-button>
-
-                <el-dropdown @command="handleCommand($event, template)">
-                  <el-button size="small">
-                    更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
-                  </el-button>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item
-                        command="edit"
-                        :disabled="!hasPermission(template, 'edit')"
-                        :title="getPermissionMessage(template, 'edit')"
-                      >
-                        编辑
-                      </el-dropdown-item>
-                      <el-dropdown-item
-                        command="toggleStatus"
-                        :disabled="!hasPermission(template, 'toggleStatus')"
-                        :title="getPermissionMessage(template, 'toggleStatus')"
-                      >
-                        {{ template.status === "active" ? "禁用" : "启用" }}
-                      </el-dropdown-item>
-                      <el-dropdown-item
-                        command="delete"
-                        :disabled="!hasPermission(template, 'delete')"
-                        :title="getPermissionMessage(template, 'delete')"
-                      >
-                        删除
-                      </el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
+              <div class="card-footer" @click.stop>
+                <div class="template-status">
+                  <!-- 简化版本用于测试 -->
+                  <span>状态: {{ template.status === 'active' ? '启用' : '禁用' }}</span>
+                  <el-switch 
+                    :model-value="template.status === 'active'"
+                    @change="toggleTemplateStatus(template)"
+                    size="small"
+                  />
+                </div>
+                
+                <div class="template-actions">
+                  <el-button size="small" @click="viewTemplate(template)">查看</el-button>
+                  <el-button size="small" type="primary" @click="useTemplate(template)">使用</el-button>
+                  <el-dropdown @command="handleCommand($event, template)">
+                    <el-button size="small">
+                      更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
+                    </el-button>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                        <el-dropdown-item command="download">下载</el-dropdown-item>
+                        <el-dropdown-item command="delete">删除</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
               </div>
             </template>
           </el-card>
@@ -240,8 +209,6 @@ import {
 import { useAuthStore } from "@/stores/auth";
 import { useTemplateStore } from "@/stores/template";
 import { supabase } from "@/utils/supabase";
-import TemplateForm from "./components/template-form.vue";
-import TemplateDetail from "./components/template-detail.vue";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -262,19 +229,19 @@ const templates = computed(() => templateStore.templates);
 const total = computed(() => templateStore.totalTemplates);
 const loading = computed(() => templateStore.isLoading);
 
-// 权限验证函数
-const hasPermission = (template: any, action: string): boolean => {
-  if (!currentUser.value) return false;
-
+// 权限检查函数
+const hasPermission = (template: any, action: string) => {
+  if (!template || !currentUser.value) return false;
+  
   // 管理员可以执行所有操作
   if (currentUser.value.role === "admin") return true;
-
-  // 模板创建者可以执行编辑、删除、状态切换操作
-  if (template.created_by === currentUser.value.id) {
-    return ["edit", "delete", "toggleStatus"].includes(action);
+  
+  // 模板创建者可以编辑、删除、状态切换
+  if (action === 'edit' || action === 'delete' || action === 'toggleStatus') {
+    return template.created_by === currentUser.value.id;
   }
-
-  return false;
+  
+  return true;
 };
 
 // 获取权限提示信息
@@ -347,13 +314,16 @@ const handleCurrentChange = (page: number) => {
 
 const viewTemplate = async (template: any) => {
   try {
-    const templateDetail = await templateStore.getTemplate(template.id);
-    if (templateDetail) {
-      // 跳转到详情页
-      router.push(`/templates/detail/${template.id}`);
+    if (!template || !template.id) {
+      ElMessage.error('模板数据无效');
+      return;
     }
+    console.log('查看模板详情:', template.id, template.name);
+    // 直接跳转到详情页，数据在详情页加载
+    await router.push(`/templates/${template.id}`);
   } catch (error) {
-    ElMessage.error(templateStore.error || "获取模板详情失败");
+    console.error('跳转失败:', error);
+    ElMessage.error('跳转失败');
   }
 };
 
@@ -392,6 +362,9 @@ const handleCommand = async (command: string, template: any) => {
 
 const toggleTemplateStatus = async (template: any) => {
   try {
+    // 设置loading状态
+    template.loading = true;
+    
     const newStatus = template.status === "active" ? "inactive" : "active";
 
     const { error } = await supabase
@@ -401,10 +374,14 @@ const toggleTemplateStatus = async (template: any) => {
 
     if (error) throw error;
 
+    // 立即更新本地状态，无需重新加载
+    template.status = newStatus;
+    
     ElMessage.success(`模板已${newStatus === "active" ? "启用" : "禁用"}`);
-    loadTemplates();
   } catch (error: any) {
     ElMessage.error(`操作失败: ${error.message}`);
+  } finally {
+    template.loading = false;
   }
 };
 
@@ -509,6 +486,7 @@ onMounted(() => {
   margin-bottom: 20px;
   height: 280px;
   transition: all 0.3s ease;
+  cursor: pointer;
 }
 
 .template-card:hover {
@@ -574,10 +552,26 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-.template-actions {
+.card-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.template-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-text {
+  font-size: 12px;
+  color: #909399;
+}
+
+.template-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .empty-state {

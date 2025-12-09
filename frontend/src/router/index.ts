@@ -98,6 +98,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "模板详情" },
       },
       {
+        path: "templates/:id/edit",
+        name: "TemplateEdit",
+        component: () => import("@/views/templates/Edit.vue"),
+        meta: { title: "编辑模板" },
+      },
+      {
         path: "risk-rules",
         name: "RiskRules",
         component: () => import("@/views/risk-rules/index.vue"),
@@ -138,6 +144,14 @@ const router = createRouter({
 
 // 路由守卫
 router.beforeEach(async (to, from, next) => {
+  console.log('路由守卫触发:', {
+    path: to.path,
+    name: to.name,
+    params: to.params,
+    requiresAuth: to.meta.requiresAuth,
+    guestOnly: to.meta.guestOnly
+  });
+
   // 设置页面标题
   if (to.meta.title) {
     document.title = `${to.meta.title} - AI合同管理系统`;
@@ -145,10 +159,12 @@ router.beforeEach(async (to, from, next) => {
 
   // 初始化认证状态
   const authStore = useAuthStore();
+  console.log('认证状态:', authStore.isAuthenticated, '用户:', authStore.user);
 
   // 如果需要认证的页面
   if (to.meta.requiresAuth) {
     if (!authStore.isAuthenticated) {
+      console.log('需要认证但未登录，跳转到登录页');
       next("/login");
       return;
     }
@@ -156,10 +172,12 @@ router.beforeEach(async (to, from, next) => {
 
   // 如果只允许访客访问的页面（如登录、注册）
   if (to.meta.guestOnly && authStore.isAuthenticated) {
+    console.log('访客页面但已登录，跳转到仪表板');
     next("/dashboard");
     return;
   }
 
+  console.log('路由守卫通过，继续到目标页面');
   next();
 });
 

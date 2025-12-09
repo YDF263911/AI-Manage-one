@@ -213,7 +213,6 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from "elem
 import { useAuthStore } from "@/stores/auth";
 import { useTemplateStore } from "@/stores/template";
 import { aiApi } from "@/api/aiApi";
-import type { Template } from "@/utils/supabase";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -377,7 +376,7 @@ const generateTemplate = async () => {
     console.log('API响应:', response);
     
     // 多种方式获取模板数据，适应不同的API响应结构
-    let templateData;
+    let templateData: any;
     
     // 尝试不同的响应结构
     if (response.data && response.data.data) {

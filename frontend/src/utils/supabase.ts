@@ -110,6 +110,7 @@ export interface Template {
   created_by_name?: string;
   created_at: string;
   updated_at: string;
+  variables?: any[];
 }
 
 export interface ContractDraft {

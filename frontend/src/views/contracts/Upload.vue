@@ -1,8 +1,11 @@
 <template>
   <div class="contract-upload">
     <div class="upload-header">
-      <h2>合同上传</h2>
-      <p>上传合同文件进行智能分析</p>
+      <h2>{{ selectedTemplate ? '基于模板创建合同' : '合同上传' }}</h2>
+      <p>{{ selectedTemplate ? '基于选中的模板创建新合同' : '上传合同文件进行智能分析' }}</p>
+      <div v-if="selectedTemplate" class="template-info">
+        <el-alert :title="`使用模板: ${selectedTemplate.name}`" type="success" :closable="false" />
+      </div>
     </div>
 
     <div class="upload-content">
@@ -134,13 +137,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import { ElMessage, type UploadInstance, type UploadFile } from "element-plus";
 import { UploadFilled, Document } from "@element-plus/icons-vue";
 import { supabase } from "@/utils/supabase";
 import api from "@/utils/api";
 import { useAuthStore } from "@/stores/auth";
 import { useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 
 const uploadRef = ref<UploadInstance>();
 const fileList = ref<UploadFile[]>([]);
@@ -151,6 +155,9 @@ const authStore = useAuthStore();
 const user = authStore.user;
 const token = localStorage.getItem("token");
 const router = useRouter();
+const route = useRoute();
+
+const selectedTemplate = ref(null);
 
 const acceptTypes = ".pdf,.doc,.docx";
 
@@ -220,6 +227,26 @@ const clearFile = () => {
     period: [],
     remarks: "",
   });
+};
+
+// 检测并处理选中的模板
+const checkSelectedTemplate = () => {
+  const templateData = localStorage.getItem('selectedTemplate');
+  if (templateData) {
+    selectedTemplate.value = JSON.parse(templateData);
+    console.log('检测到选中的模板:', selectedTemplate.value);
+    
+    // 预填充表单数据
+    if (selectedTemplate.value.name && !contractForm.name) {
+      contractForm.name = selectedTemplate.value.name;
+    }
+    if (selectedTemplate.value.category) {
+      contractForm.category = selectedTemplate.value.category;
+    }
+    
+    // 清除localStorage，避免重复使用
+    localStorage.removeItem('selectedTemplate');
+  }
 };
 
 const formatFileSize = (bytes: number): string => {
@@ -314,6 +341,11 @@ const triggerAnalysis = async (contractId: string) => {
     throw error; // 重新抛出错误，让调用者知道分析请求失败
   }
 };
+
+// 页面初始化
+onMounted(() => {
+  checkSelectedTemplate();
+});
 </script>
 
 <style scoped>
@@ -335,6 +367,11 @@ const triggerAnalysis = async (contractId: string) => {
 
 .upload-header p {
   color: #606266;
+  margin-bottom: 15px;
+}
+
+.template-info {
+  margin-top: 15px;
 }
 
 .upload-card {

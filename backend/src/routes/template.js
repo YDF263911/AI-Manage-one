@@ -68,6 +68,32 @@ router.get('/:id', protect, async (req, res) => {
   }
 });
 
+// 获取模板使用统计
+router.get('/stats/:id', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // 这里可以查询合同表来统计使用次数
+    // 目前返回模拟数据
+    const stats = {
+      template_id: id,
+      recent_usage: Math.floor(Math.random() * 50), // 模拟最近使用次数
+      total_usage: Math.floor(Math.random() * 200),  // 模拟总使用次数
+      last_used: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '获取使用统计失败',
+    });
+  }
+});
+
 // 创建新模板
 router.post('/', protect, async (req, res) => {
   try {

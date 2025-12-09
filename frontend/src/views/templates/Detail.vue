@@ -29,13 +29,6 @@
         <el-button-group>
           <el-button type="primary" @click="useTemplate">使用模板</el-button>
           <el-button :disabled="!canEdit" @click="editTemplate">编辑</el-button>
-          <el-button
-            :type="templateDetail?.status === 'active' ? 'warning' : 'success'"
-            :disabled="!canEdit"
-            @click="toggleTemplateStatus"
-          >
-            {{ templateDetail?.status === "active" ? "禁用" : "启用" }}
-          </el-button>
           <el-button type="danger" :disabled="!canEdit" @click="deleteTemplate"
             >删除</el-button
           >
@@ -200,8 +193,6 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import { Document } from "@element-plus/icons-vue";
 import { useAuthStore } from "@/stores/auth";
 import { useTemplateStore } from "@/stores/template";
-import type { Template } from "@/utils/supabase";
-import { apiMethods } from "@/utils/api";
 
 const route = useRoute();
 const router = useRouter();
@@ -227,7 +218,9 @@ const goBack = () => {
 
 const loadTemplateDetail = async () => {
   try {
+    console.log('加载模板详情，ID:', templateId);
     const template = await templateStore.getTemplate(templateId);
+    console.log('获取到的模板数据:', template);
     if (template) {
       // 加载相关模板
       await loadRelatedTemplates();
@@ -235,10 +228,13 @@ const loadTemplateDetail = async () => {
       // 加载操作记录
       await loadOperationLogs();
 
-      // 加载使用统计
-      await loadUsageStats();
+      // 使用统计功能暂未实现，设置为默认值
+      recentUsage.value = 0;
+    } else {
+      ElMessage.error('模板不存在');
     }
   } catch (error) {
+    console.error('加载模板详情失败:', error);
     ElMessage.error(templateStore.error || "加载模板详情失败");
   }
 };
@@ -283,39 +279,36 @@ const loadRelatedTemplates = async () => {
   }
 };
 
-const loadUsageStats = async () => {
-  try {
-    // 从API获取使用统计
-    const response = await apiMethods.getDetail(`/templates/stats`, templateId);
-    if ((response as any).success) {
-      recentUsage.value = (response as any).data.recent_usage || 0;
-    }
-  } catch (error) {
-    console.error('加载使用统计失败:', error);
-    // API调用失败时显示0
-    recentUsage.value = 0;
-  }
-};
+
 
 const useTemplate = async () => {
   try {
+    // 保存模板数据到localStorage供上传页面使用
+    const templateData = {
+      id: templateId,
+      name: templateDetail.value?.name,
+      content: templateDetail.value?.content,
+      variables: templateDetail.value?.variables || [],
+      category: templateDetail.value?.category
+    };
+    
+    console.log('保存模板数据到localStorage:', templateData);
+    localStorage.setItem('selectedTemplate', JSON.stringify(templateData));
+    
     // 增加使用次数
-    await templateStore.incrementUsageCount(templateId);
+    try {
+      await templateStore.incrementUsageCount(templateId);
+    } catch (error) {
+      console.error("增加使用次数失败:", error);
+    }
 
     ElMessage.success(`开始使用模板: ${templateDetail.value?.name}`);
-    // 跳转到合同创建页面，并预填充模板内容
-    router.push({
-      path: "/contracts/create",
-      query: { template_id: templateId },
-    });
+    
+    // 跳转到合同上传页面
+    router.push('/contracts/upload');
   } catch (error) {
-    // 即使增加使用次数失败，也继续跳转到创建页面
-    console.error("增加使用次数失败:", error);
-    ElMessage.success(`开始使用模板: ${templateDetail.value?.name}`);
-    router.push({
-      path: "/contracts/create",
-      query: { template_id: templateId },
-    });
+    console.error('使用模板失败:', error);
+    ElMessage.error("操作失败");
   }
 };
 
@@ -323,20 +316,7 @@ const editTemplate = () => {
   router.push(`/templates/${templateId}/edit`);
 };
 
-const toggleTemplateStatus = async () => {
-  try {
-    if (!templateDetail.value) return;
 
-    const newStatus =
-      templateDetail.value.status === "active" ? "inactive" : "active";
-    await templateStore.updateTemplate(templateId, { status: newStatus });
-
-    ElMessage.success(`模板已${newStatus === "active" ? "启用" : "禁用"}`);
-    await loadTemplateDetail();
-  } catch (error) {
-    ElMessage.error(templateStore.error || "操作失败");
-  }
-};
 
 const deleteTemplate = async () => {
   try {
@@ -421,6 +401,8 @@ const getLogType = (action: string) => {
 };
 
 onMounted(() => {
+  console.log('Detail页面已加载，路由参数:', route.params);
+  console.log('当前路由路径:', route.path);
   loadTemplateDetail();
 });
 </script>
