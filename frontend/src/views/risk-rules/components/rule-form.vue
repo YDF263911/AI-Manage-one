@@ -106,11 +106,11 @@
         />
       </el-form-item>
 
-      <el-form-item label="是否启用" prop="status">
+      <el-form-item label="是否启用" prop="is_active">
         <el-switch
-          v-model="formData.status"
-          active-value="active"
-          inactive-value="inactive"
+          v-model="formData.is_active"
+          :active-value="true"
+          :inactive-value="false"
         />
       </el-form-item>
 
@@ -160,7 +160,7 @@ const formData = reactive({
   pattern_content: "",
   threshold: 0.8,
   suggestion: "",
-  status: "active",
+  is_active: true,
 });
 
 const rules: FormRules = {

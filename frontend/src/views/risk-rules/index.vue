@@ -15,6 +15,10 @@
           <el-icon><Plus /></el-icon>
           新建规则
         </el-button>
+        <el-button @click="addDemoRules">
+          <el-icon><Star /></el-icon>
+          添加示例规则
+        </el-button>
         <el-button @click="importRules">
           <el-icon><Upload /></el-icon>
           导入规则
@@ -117,12 +121,10 @@
 
         <el-table-column prop="description" label="规则描述" min-width="250" />
 
-        <el-table-column prop="status" label="状态" width="80">
+        <el-table-column prop="is_active" label="状态" width="80">
           <template #default="{ row }">
             <el-switch
-              v-model="row.status"
-              active-value="active"
-              inactive-value="inactive"
+              v-model="row.is_active"
               @change="toggleRuleStatus(row)"
             />
           </template>
@@ -242,6 +244,7 @@ import {
   Download,
   Document,
   ArrowDown,
+  Star,
 } from "@element-plus/icons-vue";
 import { supabase } from "@/utils/supabase";
 import RuleForm from "./components/rule-form.vue";
@@ -344,16 +347,16 @@ const toggleRuleStatus = async (rule: any) => {
   try {
     const { error } = await supabase
       .from("risk_rules")
-      .update({ status: rule.status })
+      .update({ is_active: rule.is_active })
       .eq("id", rule.id);
 
     if (error) throw error;
 
-    ElMessage.success(`规则已${rule.status === "active" ? "启用" : "禁用"}`);
+    ElMessage.success(`规则已${rule.is_active ? "启用" : "禁用"}`);
   } catch (error: any) {
     ElMessage.error(`操作失败: ${error.message}`);
     // 恢复状态
-    rule.status = rule.status === "active" ? "inactive" : "active";
+    rule.is_active = !rule.is_active;
   }
 };
 
@@ -435,6 +438,10 @@ const deleteRule = async (rule: any) => {
   }
 };
 
+const addDemoRules = () => {
+  router.push('/risk-rules/add-demo');
+};
+
 const importRules = () => {
   ElMessage.info("导入规则功能开发中...");
 };
@@ -449,7 +456,7 @@ const batchEnable = async () => {
 
     const { error } = await supabase
       .from("risk_rules")
-      .update({ status: "active" })
+      .update({ is_active: true })
       .in("id", ruleIds);
 
     if (error) throw error;
@@ -468,7 +475,7 @@ const batchDisable = async () => {
 
     const { error } = await supabase
       .from("risk_rules")
-      .update({ status: "inactive" })
+      .update({ is_active: false })
       .in("id", ruleIds);
 
     if (error) throw error;

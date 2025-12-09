@@ -110,6 +110,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: "风险规则" },
       },
       {
+        path: "risk-rules/add-demo",
+        name: "RiskRulesAddDemo",
+        component: () => import("@/views/risk-rules/AddDemoRules.vue"),
+        meta: { title: "添加示例规则" },
+      },
+      {
         path: "risk-rules/:id/edit",
         name: "RiskRuleEdit",
         component: () => import("@/views/risk-rules/edit.vue"),
