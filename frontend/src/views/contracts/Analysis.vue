@@ -10,12 +10,36 @@
     </div>
 
     <div v-loading="loading" class="analysis-content">
-      <!-- 添加进度条显示 -->
+      <!-- AI分析步骤进度显示 -->
       <div v-if="progress < 100 && !loading" class="analysis-progress">
-        <el-progress :percentage="progress" />
-        <p class="progress-text">
-          {{ analysisResult?.summary || "合同正在分析中，请稍候..." }}
-        </p>
+        <el-card class="progress-card">
+          <template #header>
+            <div class="progress-header">
+              <el-icon class="rotating"><Loading /></el-icon>
+              <span>AI智能分析进行中</span>
+            </div>
+          </template>
+          
+          <!-- 分析步骤 -->
+          <el-steps :active="currentStepIndex" align-center finish-status="success">
+            <el-step title="文本提取" description="2-5秒" />
+            <el-step title="AI分析" description="15-30秒" />
+            <el-step title="生成报告" description="2-3秒" />
+            <el-step title="完成" description="即将完成" />
+          </el-steps>
+          
+          <!-- 进度条 -->
+          <div class="progress-bar">
+            <el-progress 
+              :percentage="progress" 
+              :status="progress >= 95 ? 'success' : ''"
+              :stroke-width="8"
+            />
+            <p class="progress-text">
+              {{ getCurrentStepText() }} - {{ progress }}%
+            </p>
+          </div>
+        </el-card>
       </div>
 
       <!-- 分析概览 -->
@@ -299,7 +323,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from "vue";
+import { ref, onMounted, nextTick, computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElProgress } from "element-plus";
 import {
@@ -332,6 +356,22 @@ const riskIssues = ref<any[]>([]);
 
 // 真实风险分类（从AI分析结果动态生成）
 const riskCategories = ref<any[]>([]);
+
+// 分析步骤定义
+const analysisSteps = [
+  { key: 'extracting', title: '文本提取', duration: '2-5秒', maxProgress: 20 },
+  { key: 'analyzing', title: 'AI分析', duration: '15-30秒', maxProgress: 70 },
+  { key: 'generating', title: '生成报告', duration: '2-3秒', maxProgress: 95 },
+  { key: 'completed', title: '完成', duration: '完成', maxProgress: 100 }
+];
+
+// 当前步骤索引
+const currentStepIndex = computed(() => {
+  if (progress.value <= 20) return 0;
+  if (progress.value <= 70) return 1;
+  if (progress.value < 100) return 2;
+  return 3;
+});
 
 const clauseAnalysis = ref([
   {
@@ -800,6 +840,12 @@ const formatAnalysisTime = (seconds: number) => {
   return `${minutes}分${remainingSeconds}秒`;
 };
 
+// 获取当前步骤文本
+const getCurrentStepText = () => {
+  const step = analysisSteps[currentStepIndex.value];
+  return step ? step.title : '准备中...';
+};
+
 const viewClauseDetail = (clause: any) => {
   selectedClause.value = clause;
   clauseDialogVisible.value = true;
@@ -1054,5 +1100,34 @@ onMounted(() => {
   margin-top: 10px;
   font-size: 14px;
   color: #606266;
+}
+
+.progress-card {
+  margin-bottom: 20px;
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.rotating {
+  animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.progress-bar {
+  margin-top: 20px;
+  text-align: center;
+}
+
+.progress-bar .el-steps {
+  margin-bottom: 20px;
 }
 </style>

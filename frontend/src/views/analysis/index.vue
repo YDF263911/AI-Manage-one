@@ -3,7 +3,7 @@
     <div class="header">
       <h1>智能分析</h1>
       <el-button type="primary" @click="startBatchAnalysis">
-        <el-icon><Analysis /></el-icon>
+        <el-icon><TrendCharts /></el-icon>
         批量分析
       </el-button>
     </div>
@@ -185,7 +185,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from "vue";
 import { ElMessage } from "element-plus";
-import { Analysis } from "@element-plus/icons-vue";
+import { TrendCharts } from "@element-plus/icons-vue";
 import { useContractStore } from "../../stores/contract";
 import type { Contract, ContractAnalysis } from "../../utils/supabase";
 
@@ -224,7 +224,7 @@ const analysisTasks = computed(() => {
     
     return {
       id: contract.id,
-      contractName: contract.filename || contract.name,
+      contractName: contract.filename,
       status: contract.status,
       riskLevel: riskLevel,
       riskScore: riskScore,
@@ -307,7 +307,7 @@ const startBatchAnalysis = async () => {
     if (result.success) {
       ElMessage.success("批量分析已开始");
     } else {
-      ElMessage.error(result.error || "批量分析失败");
+      ElMessage.error((result as any).error || "批量分析失败");
     }
   } catch (error) {
     console.error("批量分析失败:", error);
@@ -435,7 +435,7 @@ const reAnalyze = async (task: any) => {
     if (result.success) {
       ElMessage.success(`开始重新分析合同: ${task.contractName}`);
     } else {
-      ElMessage.error(result.error || "重新分析失败");
+      ElMessage.error((result as any).error || "重新分析失败");
     }
   } catch (error) {
     console.error("重新分析失败:", error);
@@ -450,7 +450,7 @@ const deleteTask = async (task: any) => {
     if (result.success) {
       ElMessage.success(`删除分析任务: ${task.contractName}`);
     } else {
-      ElMessage.error(result.error || "删除失败");
+      ElMessage.error((result as any).error || "删除失败");
     }
   } catch (error) {
     console.error("删除任务失败:", error);
@@ -469,7 +469,7 @@ const exportAnalysisResult = async () => {
     if (result.success) {
       ElMessage.success("分析报告导出成功");
     } else {
-      ElMessage.error(result.error || "导出失败");
+      ElMessage.error((result as any).error || "导出失败");
     }
   } catch (error) {
     console.error("导出失败:", error);
@@ -477,136 +477,40 @@ const exportAnalysisResult = async () => {
   }
 };
 
-// 获取分析按钮文本
-const getAnalysisButtonText = (task: any) => {
-  if (task.analyzing) {
-    return "分析中...";
-  }
-  return task.hasAnalysis ? "查看结果" : "智能分析";
-};
 
-// 获取智能按钮类型
+
+
+
+// 获取按钮类型
 const getSmartButtonType = (task: any) => {
-  if (task.analyzing) {
-    return "info";
-  }
-  return task.hasAnalysis ? "success" : "primary";
+  if (task.analyzing) return 'info';
+  if (task.hasAnalysis) return 'success';
+  return 'primary';
 };
 
-// 智能分析处理函数
+// 处理智能分析
 const handleSmartAnalysis = async (task: any) => {
-  try {
-    // 如果正在分析中，不重复点击
-    if (task.analyzing) {
-      return;
-    }
-
-    // 如果已有分析结果，直接查看结果
-    if (task.hasAnalysis) {
-      await viewAnalysisResult(task);
-      return;
-    }
-
-    // 开始分析
-    analyzingTasks.value.add(task.id);
-    
-    const result = await contractStore.analyzeContract(task.id);
-    
-    if (result.success) {
-      ElMessage.success(`开始分析合同: ${task.contractName}`);
-      
-      // 等待分析完成并刷新数据
-      setTimeout(async () => {
-        await loadData();
-        analyzingTasks.value.delete(task.id);
-        
-        // 分析完成后自动显示结果
-        const updatedTask = analysisTasks.value.find(t => t.id === task.id);
-        if (updatedTask?.hasAnalysis) {
-          await viewAnalysisResult(updatedTask);
-        }
-      }, 2000);
-      
-    } else {
-      ElMessage.error(result.error || "分析失败");
-      analyzingTasks.value.delete(task.id);
-    }
-  } catch (error) {
-    console.error("智能分析失败:", error);
-    ElMessage.error("分析失败，请重试");
-    analyzingTasks.value.delete(task.id);
+  if (task.hasAnalysis) {
+    viewAnalysisResult(task);
+  } else {
+    await reAnalyze(task);
   }
 };
 
 // 获取分析按钮文本
 const getAnalysisButtonText = (task: any) => {
-  if (task.analyzing) {
-    return "分析中...";
-  }
-  return task.hasAnalysis ? "查看结果" : "智能分析";
-};
-
-// 获取智能按钮类型
-const getSmartButtonType = (task: any) => {
-  if (task.analyzing) {
-    return "info";
-  }
-  return task.hasAnalysis ? "success" : "primary";
-};
-
-// 智能分析处理函数
-const handleSmartAnalysis = async (task: any) => {
-  try {
-    // 如果正在分析中，不重复点击
-    if (task.analyzing) {
-      return;
-    }
-
-    // 如果已有分析结果，直接查看结果
-    if (task.hasAnalysis) {
-      await viewAnalysisResult(task);
-      return;
-    }
-
-    // 开始分析
-    analyzingTasks.value.add(task.id);
-    
-    const result = await contractStore.analyzeContract(task.id);
-    
-    if (result.success) {
-      ElMessage.success(`开始分析合同: ${task.contractName}`);
-      
-      // 等待分析完成并刷新数据
-      setTimeout(async () => {
-        await loadData();
-        analyzingTasks.value.delete(task.id);
-        
-        // 分析完成后自动显示结果
-        const updatedTask = analysisTasks.value.find(t => t.id === task.id);
-        if (updatedTask?.hasAnalysis) {
-          await viewAnalysisResult(updatedTask);
-        }
-      }, 2000);
-      
-    } else {
-      ElMessage.error(result.error || "分析失败");
-      analyzingTasks.value.delete(task.id);
-    }
-  } catch (error) {
-    console.error("智能分析失败:", error);
-    ElMessage.error("分析失败，请重试");
-    analyzingTasks.value.delete(task.id);
-  }
+  if (task.analyzing) return 'AI分析中...';
+  if (task.hasAnalysis) return '查看AI报告';
+  return '开始AI分析';
 };
 
 // 加载合同数据
 const loadData = async () => {
   loading.value = true;
   try {
-    await Promise.all([
-      contractStore.loadContracts(),
-      contractStore.loadContractAnalyses(),
-    ]);
+    await contractStore.loadContracts();
+    // loadContractAnalyses需要contractId参数，这里暂时跳过
+    // 可以在需要时为每个合同单独加载分析结果
   } catch (error) {
     console.error("加载数据失败:", error);
     ElMessage.error("获取分析任务失败");
@@ -615,8 +519,8 @@ const loadData = async () => {
   }
 };
 
-onMounted(() => {
-  loadData();
+onMounted(async () => {
+  await loadData();
 });
 </script>
 

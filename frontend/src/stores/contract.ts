@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from "./auth";
 import { apiMethods } from "../utils/api";
 import { handleError, catchAsyncError } from "../utils/errorHandler";
+import { ElNotification } from "element-plus";
 
 export const useContractStore = defineStore("contract", () => {
   const authStore = useAuthStore();
@@ -251,7 +252,8 @@ export const useContractStore = defineStore("contract", () => {
   // 轮询获取分析结果
   const startAnalysisPolling = async (contractId: string) => {
     const maxAttempts = 30; // 最大尝试次数
-    const interval = 2000; // 2秒间隔
+    const baseInterval = 2000; // 基础间隔2秒
+    const maxInterval = 8000; // 最大间隔8秒
     
     // 防重复轮询：如果已经在轮询中，直接返回
     if (pollingContracts.value.has(contractId)) {
@@ -261,8 +263,19 @@ export const useContractStore = defineStore("contract", () => {
     
     pollingContracts.value.add(contractId);
     
+    // 显示用户友好提示
+    ElNotification({
+      title: 'AI分析已启动',
+      message: '系统正在使用AI分析您的合同，预计需要30-60秒，请耐心等待。',
+      type: 'info',
+      duration: 3000
+    });
+    
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
+        // 动态调整轮询间隔
+        const currentInterval = Math.min(baseInterval + (attempt * 500), maxInterval);
+        
         // 检查分析状态
         const analysisResult = await apiMethods.getDetail(`/analysis`, contractId);
         
@@ -271,11 +284,20 @@ export const useContractStore = defineStore("contract", () => {
           await updateContractStatus(contractId, "analyzed");
           await loadContractAnalyses(contractId);
           pollingContracts.value.delete(contractId);
+          
+          // 显示完成通知
+          ElNotification({
+            title: 'AI分析完成',
+            message: `合同分析已完成，请查看AI分析报告。`,
+            type: 'success',
+            duration: 5000
+          });
+          
           return;
         }
         
         // 等待下一次轮询
-        await new Promise(resolve => setTimeout(resolve, interval));
+        await new Promise(resolve => setTimeout(resolve, currentInterval));
       } catch (error) {
         console.warn(`第${attempt + 1}次轮询失败:`, error);
         
