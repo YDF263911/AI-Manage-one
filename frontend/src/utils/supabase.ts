@@ -97,13 +97,17 @@ export interface Template {
     | "lease"
     | "partnership"
     | "other";
+  type?: "purchase" | "sale" | "service" | "lease" | "other";
   description?: string;
   content: string;
   tags?: string[];
   version?: string;
+  status: "active" | "inactive";
+  is_public: boolean;
   is_active: boolean;
   usage_count: number;
   created_by: string;
+  created_by_name?: string;
   created_at: string;
   updated_at: string;
 }

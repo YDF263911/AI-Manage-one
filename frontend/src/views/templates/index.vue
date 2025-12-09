@@ -239,6 +239,7 @@ import {
 } from "@element-plus/icons-vue";
 import { useAuthStore } from "@/stores/auth";
 import { useTemplateStore } from "@/stores/template";
+import { supabase } from "@/utils/supabase";
 import TemplateForm from "./components/template-form.vue";
 import TemplateDetail from "./components/template-detail.vue";
 
@@ -258,7 +259,7 @@ const currentUser = ref(authStore.user);
 
 // 从store获取数据
 const templates = computed(() => templateStore.templates);
-const total = computed(() => templateStore.total);
+const total = computed(() => templateStore.totalTemplates);
 const loading = computed(() => templateStore.isLoading);
 
 // 权限验证函数
@@ -543,6 +544,7 @@ onMounted(() => {
   color: #606266;
   line-height: 1.5;
   display: -webkit-box;
+  line-clamp: 3;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
