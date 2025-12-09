@@ -373,8 +373,28 @@ const generateTemplate = async () => {
       templateForm.description
     );
     
-    // 获取API返回的数据
-    const templateData = response.data?.data || response.data;
+    // 调试：打印API响应结构
+    console.log('API响应:', response);
+    
+    // 多种方式获取模板数据，适应不同的API响应结构
+    let templateData;
+    
+    // 尝试不同的响应结构
+    if (response.data && response.data.data) {
+      // 结构1: { data: { data: {...} } }
+      templateData = response.data.data;
+    } else if (response.data && response.data.content) {
+      // 结构2: { data: { content: ... } }
+      templateData = response.data;
+    } else if (response && (response as any).content) {
+      // 结构3: { content: ... } (直接返回)
+      templateData = response as any;
+    } else {
+      // 结构4: 直接返回数据
+      templateData = response.data || response;
+    }
+    
+    console.log('解析后的模板数据:', templateData);
     
     // 更新模板内容
     templateForm.content = templateData?.content || '';
