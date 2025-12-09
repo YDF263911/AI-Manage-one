@@ -22,7 +22,7 @@ class DeepSeekService {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
       },
-      timeout: 120000, // 120秒超时，适应AI生成合同模板的耗时操作
+      timeout: 300000, // 增加到300秒（5分钟）超时，适应AI生成合同模板的耗时操作
     });
   }
 

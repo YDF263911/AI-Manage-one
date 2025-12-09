@@ -81,7 +81,7 @@
     <div v-loading="loading" class="templates-grid">
       <el-row :gutter="20">
         <el-col
-          v-for="template in templates"
+          v-for="template in templates.filter(t => t && t.id)"
           :key="template.id"
           :xs="24"
           :sm="12"

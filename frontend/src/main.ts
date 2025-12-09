@@ -31,6 +31,21 @@ app.use(ElementPlus);
 app.config.errorHandler = (err, instance, info) => {
   console.error("Vue应用错误:", err);
   console.error("错误信息:", info);
+  
+  // 如果是模板相关的错误，提供更详细的信息
+  if (err.message && err.message.includes("id")) {
+    console.error("模板数据错误详情:", {
+      errorType: "TemplateIdError",
+      errorMessage: err.message,
+      component: instance?.$options?.name || "Unknown",
+      renderInfo: info
+    });
+    
+    // 尝试获取当前路由信息
+    if (window.location.pathname.includes('/templates')) {
+      console.warn("模板页面数据异常，建议刷新页面重新加载数据");
+    }
+  }
 };
 
 // 初始化认证状态并挂载应用

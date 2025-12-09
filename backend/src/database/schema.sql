@@ -89,6 +89,7 @@ CREATE TABLE IF NOT EXISTS templates (
     category VARCHAR(50) NOT NULL CHECK (category IN ('purchase', 'sales', 'service', 'employment', 'nda', 'lease', 'partnership', 'other')),
     description TEXT,
     content TEXT NOT NULL,
+    variables JSONB, -- 模板变量定义
     tags TEXT[],
     
     -- 模板元数据

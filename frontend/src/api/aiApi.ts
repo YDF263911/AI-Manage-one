@@ -160,8 +160,10 @@ export class AIApi {
       description,
     }, {
       headers: {
-        'x-user-id': 'test-user-id-123'
-      }
+        'x-user-id': 'test-user-id-123',
+        'x-request-id': `frontend_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      },
+      timeout: 300000 // 增加到300秒（5分钟）超时
     });
   }
 }

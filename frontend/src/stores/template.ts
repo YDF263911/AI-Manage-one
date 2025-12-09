@@ -85,11 +85,11 @@ export const useTemplateStore = defineStore("template", () => {
       try {
         // 优先使用API
         try {
-          const response = await apiMethods.getList("/templates", {
+          const templatesData = await apiMethods.getList("/templates", {
             ...params,
             pageSize: params?.pageSize || 100,
           });
-          templates.value = response.data || [];
+          templates.value = (templatesData || []).filter(t => t && t.id);
           return;
         } catch (apiError) {
           console.log("使用API失败，尝试使用Supabase直接访问");
@@ -135,7 +135,7 @@ export const useTemplateStore = defineStore("template", () => {
           throw new Error(sbError.message);
         }
 
-        templates.value = data || [];
+        templates.value = (data || []).filter(t => t && t.id);
       } catch (err) {
         handleError(err, { customMessage: "加载模板失败" });
         error.value = "加载模板失败";
@@ -158,9 +158,9 @@ export const useTemplateStore = defineStore("template", () => {
     try {
       // 优先使用API
       try {
-        const response = await apiMethods.getDetail("/templates", templateId);
-        currentTemplate.value = response.data;
-        return response.data;
+        const templateData = await apiMethods.getDetail("/templates", templateId);
+        currentTemplate.value = templateData;
+        return templateData;
       } catch (apiError) {
         console.log("使用API失败，尝试使用Supabase直接访问");
         // 如果API失败，回退到Supabase直接访问
@@ -206,14 +206,15 @@ export const useTemplateStore = defineStore("template", () => {
       try {
         // 优先使用API
         try {
-          const response = await apiMethods.create("/templates", {
+          const newTemplate = await apiMethods.create("/templates", {
             ...templateData,
             created_by: authStore.user?.id,
             usage_count: 0,
           });
-          const newTemplate = response.data;
-          templates.value.unshift(newTemplate);
-          currentTemplate.value = newTemplate;
+          if (newTemplate && newTemplate.id) {
+            templates.value.unshift(newTemplate);
+            currentTemplate.value = newTemplate;
+          }
           return newTemplate;
         } catch (apiError) {
           console.log("使用API失败，尝试使用Supabase直接访问");
@@ -235,8 +236,10 @@ export const useTemplateStore = defineStore("template", () => {
           throw new Error(sbError.message);
         }
 
-        templates.value.unshift(data);
-        currentTemplate.value = data;
+        if (data && data.id) {
+          templates.value.unshift(data);
+          currentTemplate.value = data;
+        }
         return data;
       } catch (err) {
         handleError(err, { customMessage: "创建模板失败" });
@@ -262,21 +265,22 @@ export const useTemplateStore = defineStore("template", () => {
       try {
         // 优先使用API
         try {
-          const response = await apiMethods.update(
+          const updatedTemplate = await apiMethods.update(
             "/templates",
             templateId,
             templateData,
           );
-          const updatedTemplate = response.data;
 
           // 更新本地状态
-          const index = templates.value.findIndex((t) => t.id === templateId);
-          if (index !== -1) {
-            templates.value[index] = updatedTemplate;
-          }
+          if (updatedTemplate && updatedTemplate.id) {
+            const index = templates.value.findIndex((t) => t.id === templateId);
+            if (index !== -1) {
+              templates.value[index] = updatedTemplate;
+            }
 
-          if (currentTemplate.value?.id === templateId) {
-            currentTemplate.value = updatedTemplate;
+            if (currentTemplate.value?.id === templateId) {
+              currentTemplate.value = updatedTemplate;
+            }
           }
 
           return updatedTemplate;
@@ -297,13 +301,15 @@ export const useTemplateStore = defineStore("template", () => {
         }
 
         // 更新本地状态
-        const index = templates.value.findIndex((t) => t.id === templateId);
-        if (index !== -1) {
-          templates.value[index] = data;
-        }
+        if (data && data.id) {
+          const index = templates.value.findIndex((t) => t.id === templateId);
+          if (index !== -1) {
+            templates.value[index] = data;
+          }
 
-        if (currentTemplate.value?.id === templateId) {
-          currentTemplate.value = data;
+          if (currentTemplate.value?.id === templateId) {
+            currentTemplate.value = data;
+          }
         }
 
         return data;
