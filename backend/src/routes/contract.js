@@ -190,4 +190,96 @@ router.delete('/:id', protect, async (req, res) => {
   }
 });
 
+// 获取合同内容
+router.get('/:id/content', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const contracts = await DatabaseService.select('contracts', {
+      id,
+      user_id: req.user.id,
+    }, {
+      select: 'contract_content, content_edited_at, content_edited_by, filename, file_type'
+    });
+
+    if (!contracts.length) {
+      return res.status(404).json({
+        success: false,
+        message: '合同不存在',
+      });
+    }
+
+    const contract = contracts[0];
+    
+    res.json({
+      success: true,
+      data: {
+        content: contract.contract_content || '',
+        edited_at: contract.content_edited_at,
+        edited_by: contract.content_edited_by,
+        filename: contract.filename,
+        file_type: contract.file_type
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '获取合同内容失败',
+    });
+  }
+});
+
+// 更新合同内容
+router.put('/:id/content', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, edited_by, edit_time } = req.body;
+
+    if (!content) {
+      return res.status(400).json({
+        success: false,
+        message: '合同内容不能为空',
+      });
+    }
+
+    // 验证合同存在且属于当前用户
+    const existingContracts = await DatabaseService.select('contracts', {
+      id,
+      user_id: req.user.id,
+    });
+
+    if (!existingContracts.length) {
+      return res.status(404).json({
+        success: false,
+        message: '合同不存在',
+      });
+    }
+
+    // 更新合同内容
+    const updateData = {
+      contract_content: content,
+      content_edited_at: edit_time || new Date().toISOString(),
+      content_edited_by: edited_by || req.user.id,
+      updated_at: new Date().toISOString()
+    };
+
+    const updatedContract = await DatabaseService.update('contracts', id, updateData);
+
+    res.json({
+      success: true,
+      message: '合同内容保存成功',
+      data: {
+        content: updatedContract.contract_content,
+        edited_at: updatedContract.content_edited_at,
+        edited_by: updatedContract.content_edited_by
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '保存合同内容失败',
+    });
+  }
+});
+
 export default router;

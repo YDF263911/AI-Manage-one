@@ -37,7 +37,7 @@
             <el-button type="success" :icon="Document" @click="viewFile"
               >查看详情</el-button
             >
-            <el-button :icon="Edit" @click="editContract">编辑</el-button>
+            <el-button :icon="Edit" @click="editContract">编辑基本信息</el-button>
             <el-button :icon="Delete" type="danger" @click="deleteContract"
               >删除</el-button
             >
@@ -512,9 +512,21 @@ const editContract = () => {
 
 const saveEdit = async () => {
   try {
+    // 构建正确的数据结构，映射前端字段到数据库字段
+    const updateData = {
+      contract_title: editForm.value.name,
+      category: editForm.value.type,
+      contract_parties: {
+        party_a: editForm.value.party_a,
+        party_b: editForm.value.party_b
+      },
+      contract_amount: editForm.value.amount,
+      remarks: editForm.value.remarks
+    };
+
     const { error } = await supabase
       .from("contracts")
-      .update(editForm.value)
+      .update(updateData)
       .eq("id", contractId);
 
     if (error) throw error;
@@ -523,6 +535,7 @@ const saveEdit = async () => {
     editDialogVisible.value = false;
     await loadContractDetail();
   } catch (error: any) {
+    console.error('更新失败详情:', error);
     ElMessage.error(`更新失败: ${error.message}`);
   }
 };

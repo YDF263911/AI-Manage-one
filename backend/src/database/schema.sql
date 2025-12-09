@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS contracts (
     effective_date DATE,
     expiration_date DATE,
     
+    -- 合同内容（编辑功能）
+    contract_content TEXT,
+    content_edited_at TIMESTAMPTZ,
+    content_edited_by UUID REFERENCES auth.users(id),
+    
     -- 分析信息
     analysis_started_at TIMESTAMPTZ,
     analysis_completed_at TIMESTAMPTZ,

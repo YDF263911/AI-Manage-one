@@ -7,12 +7,12 @@
             <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
             <el-breadcrumb-item :to="{ path: '/contracts' }">合同列表</el-breadcrumb-item>
             <el-breadcrumb-item :to="{ path: `/contracts/${contractId}` }">合同详情</el-breadcrumb-item>
-            <el-breadcrumb-item>合同内容提取</el-breadcrumb-item>
+            <el-breadcrumb-item>{{ isEditMode ? '合同内容编辑' : '合同内容提取' }}</el-breadcrumb-item>
           </el-breadcrumb>
         </template>
         <template #content>
-          <h2>合同内容智能提取</h2>
-          <p>AI智能解析合同文档内容</p>
+          <h2>{{ isEditMode ? '合同内容编辑' : '合同内容智能提取' }}</h2>
+          <p>{{ isEditMode ? '在线编辑合同文本内容' : 'AI智能解析合同文档内容' }}</p>
         </template>
       </el-page-header>
     </div>
@@ -55,6 +55,7 @@
           :icon="MagicStick" 
           @click="extractText"
           :loading="extracting"
+          :disabled="isEditMode"
         >
           {{ fromCache ? '重新提取' : (extractedText ? '重新提取' : '智能提取') }}
         </el-button>
@@ -62,7 +63,7 @@
           type="success" 
           :icon="Download" 
           @click="downloadText"
-          :disabled="!extractedText"
+          :disabled="!extractedText || isEditMode"
         >
           下载文本
         </el-button>
@@ -70,6 +71,7 @@
           type="info" 
           :icon="Refresh" 
           @click="refreshViewer"
+          :disabled="isEditMode"
         >
           刷新
         </el-button>
@@ -78,10 +80,37 @@
           type="warning" 
           :icon="MagicStick" 
           @click="forceReExtract"
+          :disabled="isEditMode"
         >
           强制重提
         </el-button>
-
+        
+        <!-- 编辑模式切换按钮 -->
+        <el-button 
+          v-if="extractedText && !isEditMode"
+          type="primary" 
+          :icon="Edit" 
+          @click="enterEditMode"
+        >
+          编辑内容
+        </el-button>
+        <el-button 
+          v-if="isEditMode"
+          type="success" 
+          :icon="Check" 
+          @click="saveEditedText"
+          :loading="saving"
+        >
+          保存修改
+        </el-button>
+        <el-button 
+          v-if="isEditMode"
+          type="info" 
+          :icon="Close" 
+          @click="cancelEditMode"
+        >
+          取消编辑
+        </el-button>
       </div>
 
       <!-- 提取结果 -->
@@ -101,19 +130,37 @@
               :prefix-icon="Search"
               clearable
               style="width: 300px; margin-right: 10px;"
+              :disabled="isEditMode"
             />
             <el-button-group>
-              <el-button @click="copyText" :icon="CopyDocument">
+              <el-button @click="copyText" :icon="CopyDocument" :disabled="isEditMode">
                 复制文本
               </el-button>
-              <el-button @click="clearText" :icon="Delete">
+              <el-button @click="clearText" :icon="Delete" :disabled="isEditMode">
                 清空
               </el-button>
             </el-button-group>
           </div>
           
           <div class="text-content">
-            <pre ref="textContent" class="text-display">{{ highlightedText }}</pre>
+            <div v-if="!isEditMode">
+              <pre ref="textContent" class="text-display">{{ highlightedText }}</pre>
+            </div>
+            <div v-else class="edit-container">
+              <el-input
+                v-model="editedText"
+                type="textarea"
+                :rows="20"
+                placeholder="请输入合同内容..."
+                class="text-edit-area"
+                resize="none"
+              />
+              <div class="edit-info">
+                <span class="char-count">字符数: {{ editedText.length }}</span>
+                <span class="line-count">行数: {{ editedText.split('\n').length }}</span>
+                <span v-if="hasUnsavedChanges" class="unsaved-hint">* 有未保存的修改</span>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -209,7 +256,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { 
   Document, Download, Refresh, 
-  Search, CopyDocument, Delete, Collection, Timer, MagicStick 
+  Search, CopyDocument, Delete, Collection, Timer, MagicStick, Edit, Check, Close
 } from '@element-plus/icons-vue';
 import { supabase } from "@/utils/supabase";
 import { useAuthStore } from "@/stores/auth";
@@ -220,11 +267,17 @@ const authStore = useAuthStore();
 
 const loading = ref(false);
 const extracting = ref(false);
+const saving = ref(false);
 const currentFile = ref<any>(null);
 const extractedText = ref('');
+const editedText = ref('');
 const extractionError = ref('');
 const searchText = ref('');
 const fromCache = ref(false);
+const isEditMode = ref(false);
+const hasUnsavedChanges = ref(false);
+const autoSaveTimer = ref<NodeJS.Timeout | null>(null);
+const lastSavedText = ref('');
 
 const contractId = route.query.contract_id as string;
 
@@ -1251,6 +1304,208 @@ const forceExtractWithCache = async () => {
   }
 };
 
+// 编辑功能相关方法
+const enterEditMode = () => {
+  if (!extractedText.value) {
+    ElMessage.warning('没有可编辑的文本内容');
+    return;
+  }
+  
+  isEditMode.value = true;
+  editedText.value = extractedText.value;
+  lastSavedText.value = extractedText.value;
+  hasUnsavedChanges.value = false;
+  
+  // 启动自动保存监听
+  setupAutoSave();
+  
+  ElMessage.info('已进入编辑模式，修改内容后请记得保存');
+};
+
+// 自动保存功能
+const setupAutoSave = () => {
+  // 清除之前的定时器
+  if (autoSaveTimer.value) {
+    clearTimeout(autoSaveTimer.value);
+  }
+  
+  // 监听文本变化
+  watch(editedText, (newVal, oldVal) => {
+    if (newVal !== lastSavedText.value) {
+      hasUnsavedChanges.value = true;
+      
+      // 设置自动保存（5秒后自动保存）
+      if (autoSaveTimer.value) {
+        clearTimeout(autoSaveTimer.value);
+      }
+      
+      autoSaveTimer.value = setTimeout(async () => {
+        if (hasUnsavedChanges.value && editedText.value.trim()) {
+          await autoSaveText();
+        }
+      }, 5000); // 5秒后自动保存
+    } else {
+      hasUnsavedChanges.value = false;
+    }
+  }, { immediate: true });
+};
+
+// 自动保存文本
+const autoSaveText = async () => {
+  if (!editedText.value.trim() || !hasUnsavedChanges.value) {
+    return;
+  }
+  
+  try {
+    const token = localStorage.getItem('token') || authStore.user?.access_token || '';
+    const headers: any = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else if (authStore.user?.id) {
+      headers['X-User-ID'] = authStore.user.id;
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/contracts/${contractId}/content`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        content: editedText.value,
+        edited_by: authStore.user?.id || 'system',
+        edit_time: new Date().toISOString()
+      })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.success) {
+        lastSavedText.value = editedText.value;
+        hasUnsavedChanges.value = false;
+        console.log('自动保存成功');
+      }
+    }
+  } catch (error) {
+    console.error('自动保存失败:', error);
+  }
+};
+
+const saveEditedText = async () => {
+  if (!editedText.value.trim()) {
+    ElMessage.warning('编辑内容不能为空');
+    return;
+  }
+  
+  if (!contractId) {
+    ElMessage.error('缺少合同ID');
+    return;
+  }
+  
+  saving.value = true;
+  
+  try {
+    ElMessage.info('正在保存编辑内容...');
+    
+    // 清理自动保存定时器
+    if (autoSaveTimer.value) {
+      clearTimeout(autoSaveTimer.value);
+      autoSaveTimer.value = null;
+    }
+    
+    // 调用后端API保存编辑内容
+    const token = localStorage.getItem('token') || authStore.user?.access_token || '';
+    const headers: any = {
+      'Content-Type': 'application/json',
+    };
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    } else if (authStore.user?.id) {
+      headers['X-User-ID'] = authStore.user.id;
+    }
+
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api'}/contracts/${contractId}/content`, {
+      method: 'PUT',
+      headers,
+      body: JSON.stringify({
+        content: editedText.value,
+        edited_by: authStore.user?.id || 'system',
+        edit_time: new Date().toISOString()
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    if (result.success) {
+      // 更新本地文本内容
+      extractedText.value = editedText.value;
+      lastSavedText.value = editedText.value;
+      hasUnsavedChanges.value = false;
+      ElMessage.success('合同内容保存成功');
+      
+      // 可以询问用户是否退出编辑模式
+      setTimeout(() => {
+        ElMessageBox.confirm(
+          '内容已保存成功，是否退出编辑模式？',
+          '保存成功',
+          {
+            confirmButtonText: '退出编辑',
+            cancelButtonText: '继续编辑',
+            type: 'success'
+          }
+        ).then(() => {
+          cancelEditMode();
+        }).catch(() => {
+          // 用户选择继续编辑
+        });
+      }, 1000);
+    } else {
+      throw new Error(result.message || '保存失败');
+    }
+    
+  } catch (error: any) {
+    console.error('保存编辑内容失败:', error);
+    ElMessage.error(`保存失败: ${error.message}`);
+  } finally {
+    saving.value = false;
+  }
+};
+
+const cancelEditMode = () => {
+  // 清理自动保存定时器
+  if (autoSaveTimer.value) {
+    clearTimeout(autoSaveTimer.value);
+    autoSaveTimer.value = null;
+  }
+  
+  if (hasUnsavedChanges.value) {
+    ElMessageBox.confirm(
+      '有未保存的修改，确定要取消编辑吗？',
+      '确认取消',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '继续编辑',
+        type: 'warning'
+      }
+    ).then(() => {
+      isEditMode.value = false;
+      hasUnsavedChanges.value = false;
+      ElMessage.info('已退出编辑模式');
+    }).catch(() => {
+      // 用户选择继续编辑
+    });
+  } else {
+    isEditMode.value = false;
+    ElMessage.info('已退出编辑模式');
+  }
+};
+
 
 
 const formatFileSize = (bytes: number): string => {
@@ -1357,6 +1612,57 @@ watch(searchText, () => {
   border-radius: 2px;
 }
 
+/* 编辑模式样式 */
+.edit-container {
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.text-edit-area {
+  border: none;
+  resize: vertical;
+  font-family: 'Courier New', monospace;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.text-edit-area :deep(.el-textarea__inner) {
+  border: none;
+  border-radius: 0;
+  padding: 15px;
+  font-family: inherit;
+  line-height: inherit;
+  font-size: inherit;
+}
+
+.edit-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 15px;
+  background: #f5f7fa;
+  border-top: 1px solid #e4e7ed;
+  font-size: 12px;
+  color: #606266;
+}
+
+.char-count,
+.line-count {
+  margin-right: 15px;
+}
+
+.unsaved-hint {
+  color: #e6a23c;
+  font-weight: 500;
+}
+
+/* 编辑模式下的特殊样式 */
+:deep(.edit-mode-active) {
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+}
+
 .extraction-error,
 .no-extraction {
   text-align: center;
@@ -1435,6 +1741,12 @@ watch(searchText, () => {
   
   .text-content {
     max-height: 300px;
+  }
+  
+  .edit-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
   }
 }
 </style>
