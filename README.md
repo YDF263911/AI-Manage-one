@@ -76,7 +76,7 @@ VITE_SUPABASE_ANON_KEY=您的Supabase匿名密钥
 SUPABASE_URL=您的Supabase项目URL
 SUPABASE_ANON_KEY=您的Supabase匿名密钥
 SUPABASE_SERVICE_KEY=您的Supabase服务密钥
-PORT=3001
+PORT=5000
 NODE_ENV=development
 ```
 

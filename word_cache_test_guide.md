@@ -10,7 +10,7 @@
 ### 2. 首次提取测试
 **API调用**：
 ```
-POST http://localhost:5001/api/extract/text/ab917c4e-f57e-47b5-acac-6cdfa7b94b83
+POST http://localhost:5000/api/extract/text/ab917c4e-f57e-47b5-acac-6cdfa7b94b83
 Headers: X-User-ID: 6ab5abfd-1339-4875-9c5a-d2a1d398b1a3
 Body: {}
 ```
@@ -38,7 +38,7 @@ SELECT * FROM contract_text_cache WHERE contract_id = 'ab917c4e-f57e-47b5-acac-6
 ### 4. 第二次访问测试
 **API调用**：
 ```
-POST http://localhost:5001/api/extract/text/ab917c4e-f57e-47b5-acac-6cdfa7b94b83
+POST http://localhost:5000/api/extract/text/ab917c4e-f57e-47b5-acac-6cdfa7b94b83
 Headers: X-User-ID: 6ab5abfd-1339-4875-9c5a-d2a1d398b1a3
 Body: {}
 ```
@@ -58,7 +58,7 @@ Body: {}
 ### 5. 强制重新提取测试
 **API调用**：
 ```
-POST http://localhost:5001/api/extract/text/ab917c4e-f57e-47b5-acac-6cdfa7b94b83
+POST http://localhost:5000/api/extract/text/ab917c4e-f57e-47b5-acac-6cdfa7b94b83
 Headers: X-User-ID: 6ab5abfd-1339-4875-9c5a-d2a1d398b1a3
 Body: {"force": true}
 ```

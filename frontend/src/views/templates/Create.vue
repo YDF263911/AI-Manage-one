@@ -213,6 +213,7 @@ import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from "elem
 import { useAuthStore } from "@/stores/auth";
 import { useTemplateStore } from "@/stores/template";
 import { aiApi } from "@/api/aiApi";
+import type { Template } from "@/utils/supabase";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -367,30 +368,31 @@ const generateTemplate = async () => {
     ElMessage.info('AI正在生成模板，请稍候...');
 
     // 调用AI API生成模板
-    const templateData = await aiApi.generateContractTemplate(
+    const response = await aiApi.generateContractTemplate(
       templateForm.type,
       templateForm.description
     );
     
+    // 获取API返回的数据
+    const templateData = response.data?.data || response.data;
+    
     // 更新模板内容
-    templateForm.content = templateData.content;
+    templateForm.content = templateData?.content || '';
     
     // 更新模板变量
-    if (templateData.variables && Array.isArray(templateData.variables)) {
+    if (templateData?.variables && Array.isArray(templateData.variables)) {
       templateForm.variables = templateData.variables.map((v: any) => ({
-        name: v.name,
-        label: v.label,
+        name: v.name || '',
+        label: v.label || '',
         default_value: v.default_value || '',
       }));
     }
 
     // 显示生成成功提示和使用建议
-    const tips = templateData.tips || [];
+    const tips = templateData?.tips || [];
     if (tips.length > 0) {
       const tipsContent = tips.map((tip: string, index: number) => `${index + 1}. ${tip}`).join('\n');
-      ElMessageBox.success({
-        title: '模板生成成功',
-        message: `已生成完整的${templateForm.type}模板\n\n使用提示：\n${tipsContent}`,
+      await ElMessageBox.alert(`已生成完整的${templateForm.type}模板\n\n使用提示：\n${tipsContent}`, '模板生成成功', {
         type: 'success',
       });
     } else {
@@ -422,7 +424,7 @@ const submitForm = async () => {
 
 
     // 准备模板数据
-    const templateData: Omit<Template, "id" | "created_at" | "updated_at" | "usage_count"> = {
+    const templateData = {
       name: templateForm.name,
       category: templateForm.type,
       description: templateForm.description,
@@ -432,6 +434,7 @@ const submitForm = async () => {
       tags: [], // 默认空标签数组
       created_by: user.id,
       is_active: templateForm.status === "active",
+      status: templateForm.status,
     };
 
     // 使用templateStore创建模板
