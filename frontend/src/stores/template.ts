@@ -85,11 +85,12 @@ export const useTemplateStore = defineStore("template", () => {
       try {
         // 优先使用API
         try {
-          const templatesData = await apiMethods.getList("/templates", {
-            ...params,
-            pageSize: params?.pageSize || 100,
-          });
-          templates.value = (templatesData || []).filter(t => t && t.id);
+        const templatesData = await apiMethods.getList("/templates", {
+          ...params,
+          pageSize: params?.pageSize || 100,
+        }) as any;
+        const templatesList = Array.isArray(templatesData) ? templatesData : templatesData?.data || templatesData?.templates || [];
+        templates.value = (templatesList || []).filter(t => t && t.id);
           return;
         } catch (apiError) {
           console.log("使用API失败，尝试使用Supabase直接访问");
@@ -158,7 +159,7 @@ export const useTemplateStore = defineStore("template", () => {
     try {
       // 优先使用API
       try {
-        const templateData = await apiMethods.getDetail("/templates", templateId);
+        const templateData = await apiMethods.getDetail("/templates", templateId) as any;
         currentTemplate.value = templateData;
         return templateData;
       } catch (apiError) {
@@ -210,7 +211,7 @@ export const useTemplateStore = defineStore("template", () => {
             ...templateData,
             created_by: authStore.user?.id,
             usage_count: 0,
-          });
+          }) as any;
           if (newTemplate && newTemplate.id) {
             templates.value.unshift(newTemplate);
             currentTemplate.value = newTemplate;
@@ -269,7 +270,7 @@ export const useTemplateStore = defineStore("template", () => {
             "/templates",
             templateId,
             templateData,
-          );
+          ) as any;
 
           // 更新本地状态
           if (updatedTemplate && updatedTemplate.id) {

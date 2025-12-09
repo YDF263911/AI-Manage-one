@@ -28,15 +28,16 @@ app.use(router);
 app.use(ElementPlus);
 
 // 添加全局错误边界
-app.config.errorHandler = (err, instance, info) => {
+app.config.errorHandler = (err: unknown, instance, info) => {
   console.error("Vue应用错误:", err);
   console.error("错误信息:", info);
   
   // 如果是模板相关的错误，提供更详细的信息
-  if (err.message && err.message.includes("id")) {
+  const errorMessage = err instanceof Error ? err.message : String(err);
+  if (errorMessage && errorMessage.includes("id")) {
     console.error("模板数据错误详情:", {
       errorType: "TemplateIdError",
-      errorMessage: err.message,
+      errorMessage: errorMessage,
       component: instance?.$options?.name || "Unknown",
       renderInfo: info
     });

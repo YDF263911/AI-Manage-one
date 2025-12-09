@@ -113,8 +113,9 @@ const handleLogin = async () => {
       
       router.push("/dashboard");
     } else {
+      const errorMessage = (result as any).error || "登录失败，请检查邮箱和密码";
       ElMessage({
-        message: result.error || "登录失败，请检查邮箱和密码",
+        message: errorMessage,
         type: "error",
         duration: 3000
       });

@@ -170,7 +170,8 @@ const handleRegister = async () => {
     );
 
     if (!result.success) {
-      throw new Error(result.error || "注册失败");
+      const errorMessage = (result as any).error || "注册失败";
+      throw new Error(errorMessage);
     }
 
     if (result.requiresEmailVerification) {

@@ -165,7 +165,7 @@ export const useAuthStore = defineStore("auth", () => {
       });
 
       // 响应拦截器已经处理了错误情况，这里假设result是成功响应的数据
-      const apiUser = result;
+      const apiUser = result as any;
 
       // 注册成功后，标记为首次登录并自动登录
       if (apiUser) {

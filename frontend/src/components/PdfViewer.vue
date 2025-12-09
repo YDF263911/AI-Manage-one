@@ -259,9 +259,6 @@ const fetchWithRetry = async (
         clearTimeout(timeoutId);
         return response;
       }
-
-      clearTimeout(timeoutId);
-      return response;
     } catch (error) {
       clearTimeout(timeoutId);
       throw error;

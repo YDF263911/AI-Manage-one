@@ -330,8 +330,8 @@ const loadSystemConfig = async () => {
     // 更新本地配置状态
     aiConfig.ocrModel = systemStore.settings.ocrService || "paddle";
     aiConfig.nlpModel = systemStore.settings.aiModel || "bert";
-    aiConfig.riskThreshold = systemStore.settings.riskThreshold || 0.8;
-    aiConfig.autoAnalysis = systemStore.settings.autoAnalysis !== false;
+    aiConfig.riskThreshold = (systemStore.settings as any).riskThreshold || 0.8;
+    aiConfig.autoAnalysis = (systemStore.settings as any).autoAnalysis !== false;
 
     systemConfig.maxFileSize = systemStore.settings.fileSizeLimit || 10;
     systemConfig.supportedFormats = systemStore.settings.allowedFileTypes || [
@@ -341,8 +341,8 @@ const loadSystemConfig = async () => {
       "jpg",
       "png",
     ];
-    systemConfig.dataRetention = systemStore.settings.dataRetentionDays || 365;
-    systemConfig.autoBackup = systemStore.settings.autoBackup !== false;
+    systemConfig.dataRetention = (systemStore.settings as any).dataRetentionDays || 365;
+    systemConfig.autoBackup = (systemStore.settings as any).autoBackup !== false;
   } catch (error) {
     console.error("加载系统配置失败:", error);
   }

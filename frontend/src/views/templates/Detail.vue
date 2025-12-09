@@ -98,7 +98,7 @@
           <!-- 变量定义 -->
           <el-card
             v-if="
-              templateDetail?.variables && templateDetail.variables.length > 0
+              (templateDetail as any)?.variables && (templateDetail as any).variables.length > 0
             "
             class="variables-card"
           >
@@ -106,7 +106,7 @@
               <span>预定义变量</span>
             </template>
 
-            <el-table :data="templateDetail.variables" stripe>
+            <el-table :data="(templateDetail as any).variables" stripe>
               <el-table-column prop="name" label="变量名" width="120" />
               <el-table-column prop="label" label="显示名称" width="120" />
               <el-table-column prop="default_value" label="默认值" />
@@ -137,7 +137,7 @@
 
               <div class="stat-item">
                 <div class="stat-value">
-                  {{ formatDate(templateDetail?.last_used_at) }}
+                  {{ formatDate((templateDetail as any)?.last_used_at) }}
                 </div>
                 <div class="stat-label">最后使用时间</div>
               </div>
@@ -201,6 +201,7 @@ import { Document } from "@element-plus/icons-vue";
 import { useAuthStore } from "@/stores/auth";
 import { useTemplateStore } from "@/stores/template";
 import type { Template } from "@/utils/supabase";
+import { apiMethods } from "@/utils/api";
 
 const route = useRoute();
 const router = useRouter();
@@ -267,14 +268,16 @@ const loadRelatedTemplates = async () => {
     if (!templateDetail.value?.category) return;
 
     // 使用templateStore加载相关模板
-    const related = await templateStore.getTemplates({
+    await templateStore.loadTemplates({
       category: templateDetail.value.category,
-      excludeId: templateId,
       status: "active",
       pageSize: 5,
     });
 
-    relatedTemplates.value = related || [];
+    // 从store中获取相关模板，排除当前模板
+    relatedTemplates.value = templateStore.templates.filter(
+      (t: any) => t.id !== templateId
+    );
   } catch (error) {
     console.error("加载相关模板失败:", templateStore.error || error);
   }
@@ -283,9 +286,9 @@ const loadRelatedTemplates = async () => {
 const loadUsageStats = async () => {
   try {
     // 从API获取使用统计
-    const response = await api.get(`/templates/${templateId}/stats`);
-    if (response.data.success) {
-      recentUsage.value = response.data.data.recent_usage || 0;
+    const response = await apiMethods.getDetail(`/templates/stats`, templateId);
+    if ((response as any).success) {
+      recentUsage.value = (response as any).data.recent_usage || 0;
     }
   } catch (error) {
     console.error('加载使用统计失败:', error);

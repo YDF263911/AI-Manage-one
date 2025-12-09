@@ -328,7 +328,7 @@ const loadRiskDetails = async () => {
     isRiskLoading.value = true;
     
     // 使用后端API代理查询分析结果，绕过RLS限制
-    const response = await api.get(`/analysis/${contractId}`);
+    const response = await api.get(`/analysis/${contractId}`) as any;
     
     if (response.success && response.data) {
       const analysisData = response.data;
@@ -619,7 +619,8 @@ const analyzeContract = async (contractId: string) => {
         loadContractDetail();
       }, 3000);
     } else {
-      ElMessage.error(`分析失败: ${result.error}`);
+      const errorMessage = (result as any).error || "分析失败";
+      ElMessage.error(`分析失败: ${errorMessage}`);
     }
   } catch (error: any) {
     ElMessage.error(`分析合同失败: ${error.message}`);

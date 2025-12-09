@@ -229,7 +229,8 @@ const handleRegister = async () => {
         router.push("/login");
       }
     } else {
-      ElMessage.error(result.error || "注册失败");
+      const errorMessage = (result as any).error || "注册失败";
+      ElMessage.error(errorMessage);
     }
   } catch (error) {
     // 验证失败
