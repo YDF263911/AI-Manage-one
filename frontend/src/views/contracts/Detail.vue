@@ -416,11 +416,12 @@ const loadRiskDetails = async () => {
         const riskLevel = analysisData.overall_risk_level || analysisResult?.risk_level || "未知";
         const riskSummary = analysisData.risk_summary || analysisResult?.summary || "暂无详细分析";
         const confidenceScore = analysisData.confidence_score || analysisResult?.risk_score || "未知";
+        const formattedScore = typeof confidenceScore === 'number' ? confidenceScore.toFixed(1) : confidenceScore;
         
         riskDetails.value = [
           {
             type: "总体风险评估",
-            description: `风险等级：${riskLevel}，置信度：${confidenceScore}`,
+            description: `风险等级：${riskLevel}，置信度：${formattedScore}`,
             severity: riskLevel.toLowerCase() || "medium",
           },
           {

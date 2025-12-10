@@ -82,7 +82,7 @@
               </div>
               <div class="overview-content">
                 <div class="overview-value">
-                  {{ analysisResult?.risk_score || 0 }}
+                  {{ (analysisResult?.risk_score || 0).toFixed(1) }}
                 </div>
                 <div class="overview-label">风险评分</div>
               </div>
@@ -300,7 +300,7 @@ const loadAnalysisResult = async () => {
       // 合并数据
       analysisResult.value = {
         ...analysisData.contract_info || {},
-        risk_score: analysisData.confidence_score * 100,
+        risk_score: parseFloat((analysisData.confidence_score * 100).toFixed(1)),
         risk_level: analysisData.overall_risk_level,
         analysis_time: analysisData.analysis_time,
         summary: analysisData.risk_summary || "分析完成",

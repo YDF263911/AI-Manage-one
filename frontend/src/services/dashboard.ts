@@ -116,19 +116,40 @@ class DashboardService {
       critical: 0,
     };
 
-    let totalComplianceScore = 0;
+    // 计算合规率：基于风险规则的实际合规检查
+    let compliantContracts = 0;
+    let totalRulesApplied = 0;
+    let totalRulesViolated = 0;
 
     analyses?.forEach((analysis) => {
       const riskLevel = analysis.overall_risk_level || "medium";
       riskDistribution[riskLevel] = (riskDistribution[riskLevel] || 0) + 1;
 
-      if (analysis.compliance_score) {
-        totalComplianceScore += analysis.compliance_score;
+      // 基于compliance_status和compliance_issues计算合规情况
+      if (analysis.compliance_status === true) {
+        compliantContracts++;
+      }
+      
+      // 统计违规规则数量（如果有的话）
+      if (analysis.compliance_issues && Array.isArray(analysis.compliance_issues)) {
+        totalRulesViolated += analysis.compliance_issues.length;
+        totalRulesApplied += analysis.compliance_issues.length + 1; // +1 代表合规基准
+      } else if (analysis.compliance_status === true) {
+        totalRulesApplied += 1; // 合同完全合规，至少经过了规则检查
       }
     });
 
-    const complianceRate =
-      totalAnalyses > 0 ? Math.round(totalComplianceScore / totalAnalyses) : 0;
+    // 计算合规率：
+    // 方式1：基于完全合规的合同数量
+    const complianceRateByContracts = 
+      totalAnalyses > 0 ? Math.round((compliantContracts / totalAnalyses) * 100) : 0;
+    
+    // 方式2：基于规则违规件数（如果有详细数据）
+    const complianceRateByRules = 
+      totalRulesApplied > 0 ? Math.round(((totalRulesApplied - totalRulesViolated) / totalRulesApplied) * 100) : complianceRateByContracts;
+
+    // 优先使用基于规则的合规率，如果没有则使用基于合同的合规率
+    const complianceRate = totalRulesApplied > 0 ? complianceRateByRules : complianceRateByContracts;
 
     return { riskDistribution, complianceRate };
   }

@@ -28,7 +28,6 @@
       <div class="header-actions">
         <el-button-group>
           <el-button type="primary" @click="useTemplate">使用模板</el-button>
-          <el-button :disabled="!canEdit" @click="editTemplate">编辑</el-button>
           <el-button type="danger" :disabled="!canEdit" @click="deleteTemplate"
             >删除</el-button
           >
@@ -300,9 +299,7 @@ const useTemplate = async () => {
   }
 };
 
-const editTemplate = () => {
-  router.push(`/templates/${templateId}/edit`);
-};
+
 
 
 

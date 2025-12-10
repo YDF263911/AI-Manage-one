@@ -2,7 +2,7 @@
   <div class="contract-upload">
     <div class="upload-header">
       <h2>{{ selectedTemplate ? '基于模板创建合同' : '合同上传' }}</h2>
-      <p>{{ selectedTemplate ? '基于选中的模板创建新合同' : '上传合同文件进行智能分析' }}</p>
+      <p>{{ selectedTemplate ? '基于选中的模板创建新合同' : '上传合同文件到系统' }}</p>
       <div v-if="selectedTemplate" class="template-info">
         <el-alert :title="`使用模板: ${selectedTemplate.name}`" type="success" :closable="false" />
       </div>
@@ -52,7 +52,7 @@
               :loading="uploading"
               @click="handleUpload"
             >
-              {{ uploading ? "上传中..." : "开始分析" }}
+              {{ uploading ? "上传中..." : "上传合同" }}
             </el-button>
             <el-button @click="clearFile">重新选择</el-button>
           </div>
@@ -141,7 +141,6 @@ import { ref, reactive, onMounted } from "vue";
 import { ElMessage, type UploadInstance, type UploadFile } from "element-plus";
 import { UploadFilled, Document } from "@element-plus/icons-vue";
 import { supabase } from "@/utils/supabase";
-import api from "@/utils/api";
 import { useAuthStore } from "@/stores/auth";
 import { useRouter } from "vue-router";
 import { useRoute } from "vue-router";
@@ -264,7 +263,7 @@ const handleUpload = async () => {
   }
 
   uploading.value = true;
-  ElMessage.info("正在上传合同并启动分析，请稍候...");
+  ElMessage.info("正在上传合同文件，请稍候...");
 
   try {
     // 确保用户已登录且有token
@@ -313,13 +312,10 @@ const handleUpload = async () => {
 
     if (contractError) throw contractError;
 
-    ElMessage.success("合同上传成功，正在进行分析...");
+    ElMessage.success("合同上传成功！");
 
-    // 3. 触发AI分析 - 等待分析请求完成后再跳转
-    await triggerAnalysis(contractData[0].id);
-
-    // 跳转到分析结果页面
-    router.push(`/contracts/analysis?contract_id=${contractData[0].id}`);
+    // 跳转到合同列表页面
+    router.push("/contracts");
   } catch (error: any) {
     console.error("上传失败:", error);
     ElMessage.error(`上传失败: ${error.message || "未知错误"}`);
@@ -328,19 +324,7 @@ const handleUpload = async () => {
   }
 };
 
-// 触发AI分析
-const triggerAnalysis = async (contractId: string) => {
-  try {
-    // 使用axios实例替代fetch，确保认证信息正确传递
-    const data = await api.post(`/analysis/analyze/${contractId}`);
-    console.log("分析任务已启动:", data);
-    return data;
-  } catch (error: any) {
-    console.error("触发分析失败:", error);
-    // axios拦截器已经处理了错误显示，这里只需要记录日志
-    throw error; // 重新抛出错误，让调用者知道分析请求失败
-  }
-};
+
 
 // 页面初始化
 onMounted(() => {

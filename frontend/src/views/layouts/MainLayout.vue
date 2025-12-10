@@ -133,7 +133,17 @@ const currentRouteName = computed(() => {
     "/risk-rules": "风险规则",
     "/settings": "系统设置",
   };
-  return routeMap[route.path] || "未知页面";
+  
+  // 处理动态路由
+  const path = route.path;
+  if (path.startsWith('/templates/') && path !== '/templates/create') {
+    return "模板详情";
+  }
+  if (path.startsWith('/contracts/') && !['/contracts/upload', '/contracts/analysis', '/contracts/file-viewer', '/contracts/text-extract'].includes(path)) {
+    return "合同详情";
+  }
+  
+  return routeMap[path] || "未知页面";
 });
 
 // 切换侧边栏折叠状态

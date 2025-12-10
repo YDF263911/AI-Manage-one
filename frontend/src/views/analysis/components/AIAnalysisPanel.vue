@@ -217,7 +217,7 @@ const analysisResult = computed(() => {
     riskAnalysis: {
       risk_level: analysis.overall_risk_level || "low",
       summary: data.summary || "",
-      risk_score: data.compliance_score ? 1 - data.compliance_score : 0,
+      risk_score: parseFloat((data.compliance_score ? 1 - data.compliance_score : 0).toFixed(3)),
       major_risks: data.risks || [],
     },
     clauseExtraction: {

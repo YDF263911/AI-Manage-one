@@ -479,7 +479,7 @@ const buildExtractedText = (analysisResult: any) => {
     extractedText += `风险等级: ${analysisResult.risk_level}\n`;
   }
   if (analysisResult.risk_score) {
-    extractedText += `风险评分: ${analysisResult.risk_score}\n\n`;
+    extractedText += `风险评分: ${analysisResult.risk_score.toFixed(1)}\n\n`;
   }
   
   // 3. 添加主要风险点

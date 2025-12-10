@@ -219,7 +219,7 @@ const analysisTasks = computed(() => {
     
     if (analysisResult) {
       riskLevel = analysisResult.risk_level || analysisResult.risk_level || "未分析";
-      riskScore = analysisResult.risk_score || analysisResult.risk_score || 0;
+      riskScore = parseFloat((analysisResult.risk_score || analysisResult.risk_score || 0).toFixed(1));
     }
     
     return {
@@ -337,7 +337,7 @@ const viewAnalysisResult = async (task: any) => {
     // 构建更实用的分析结果数据结构
     currentResult.value = {
       riskLevel: getChineseRiskLevel(analysisResult?.risk_level) || "未分析",
-      riskScore: analysisResult?.risk_score || task.riskScore || 0,
+      riskScore: parseFloat((analysisResult?.risk_score || task.riskScore || 0).toFixed(1)),
       summary: analysisResult?.summary || "该合同已完成AI智能分析",
       
       // 风险分析 - 优化显示逻辑
