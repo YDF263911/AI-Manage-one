@@ -61,11 +61,11 @@ export const useSystemStore = defineStore("system", () => {
         throw fetchError;
       }
 
-      // 解析配置数据
+      // 解析配置数据（config_value 已经是 JSONB 对象）
       if (data && data.length > 0) {
         data.forEach((item: any) => {
           try {
-            const configData = JSON.parse(item.config_value);
+            const configData = item.config_value;
 
             // 根据配置键更新不同的设置部分
             switch (item.config_key) {
@@ -74,7 +74,7 @@ export const useSystemStore = defineStore("system", () => {
                 settings.value.ocrService = configData.ocr_model || "paddle";
                 break;
               case configKeys.fileSizeLimit:
-                settings.value.fileSizeLimit = configData.max_size || 10;
+                settings.value.fileSizeLimit = configData.max_size || (configData.max_file_size ? configData.max_file_size / 1024 / 1024 : 10); // 转换为MB
                 settings.value.allowedFileTypes = configData.allowed_types || [
                   "pdf",
                   "doc",
@@ -91,7 +91,7 @@ export const useSystemStore = defineStore("system", () => {
                 break;
             }
           } catch (parseError) {
-            console.warn(`解析配置 ${item.config_key} 失败:`, parseError);
+            console.warn(`处理配置 ${item.config_key} 失败:`, parseError);
           }
         });
       }
@@ -400,20 +400,67 @@ export const useSystemStore = defineStore("system", () => {
       isLoading.value = true;
       error.value = null;
 
+      // 检查当前用户权限
+      const { data: currentUser } = await supabase.auth.getUser();
+      if (!currentUser.user) {
+        throw new Error("用户未登录");
+      }
+
+      // 检查当前用户是否为管理员（开发阶段放宽权限）
+      const { data: currentProfile } = await supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("id", currentUser.user.id)
+        .single();
+
+      // 开发阶段：允许所有用户修改自己的状态，管理员可以修改所有用户
+      const canModify = currentProfile && 
+        (currentProfile.role === 'admin' || currentUser.user.id === userId);
+      
+      if (!canModify) {
+        throw new Error("权限不足：只能修改自己的状态或需要管理员权限");
+      }
+
+      // 验证用户ID格式（UUID）
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(userId)) {
+        // 如果是数字ID，尝试查找对应的UUID
+        const { data: userData } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("username", userId)
+          .single();
+        
+        if (!userData) {
+          throw new Error(`未找到用户ID: ${userId}`);
+        }
+        
+        userId = userData.id;
+      }
+
+      // 更新用户状态
       const { error: updateError } = await supabase
         .from("user_profiles")
-        .update({ status })
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
         .eq("id", userId);
 
       if (updateError) {
+        // 处理RLS权限错误
+        if (updateError.code === '42501') {
+          throw new Error("权限不足：只有管理员才能修改其他用户状态");
+        }
         throw updateError;
       }
 
       ElMessage.success("用户状态更新成功");
       return true;
     } catch (err: any) {
-      error.value = `更新用户状态失败: ${err.message}`;
-      ElMessage.error(error.value);
+      const errorMessage = err.message || "更新用户状态失败";
+      error.value = errorMessage;
+      ElMessage.error(errorMessage);
       console.error("更新用户状态失败:", err);
       return false;
     } finally {
@@ -456,44 +503,139 @@ export const useSystemStore = defineStore("system", () => {
     }
   };
 
-  // 重置用户密码
-  const resetPassword = async (email: string) => {
+  // 密码强度验证
+  const validatePasswordStrength = (password: string): string | null => {
+    if (!password || password.length < 8) {
+      return "密码长度至少需要8位字符";
+    }
+    if (!/[A-Z]/.test(password)) {
+      return "密码必须包含至少一个大写字母";
+    }
+    if (!/[a-z]/.test(password)) {
+      return "密码必须包含至少一个小写字母";
+    }
+    if (!/[0-9]/.test(password)) {
+      return "密码必须包含至少一个数字";
+    }
+    if (!/[^A-Za-z0-9]/.test(password)) {
+      return "密码必须包含至少一个特殊字符";
+    }
+    return null;
+  };
+
+  // 记录密码重置审计日志
+  const logPasswordReset = async (targetUserId: string) => {
+    try {
+      const { data: currentUser } = await supabase.auth.getUser();
+      if (!currentUser.user) return;
+
+      await supabase.from('audit_logs').insert({
+        action: 'password_reset',
+        operator_id: currentUser.user.id,
+        target_user_id: targetUserId,
+        timestamp: new Date().toISOString(),
+        details: '密码被管理员重置'
+      });
+    } catch (error) {
+      console.warn("记录审计日志失败:", error);
+    }
+  };
+
+  // 检查用户重置密码权限
+  const checkResetPermission = async (targetUserId: string): Promise<boolean> => {
+    try {
+      // 获取当前用户信息
+      const { data: currentUser } = await supabase.auth.getUser();
+      if (!currentUser.user) {
+        throw new Error("用户未登录");
+      }
+
+      // 如果是重置自己的密码，直接允许
+      if (targetUserId === currentUser.user.id) {
+        return true;
+      }
+
+      // 检查当前用户是否为管理员
+      const { data: currentProfile } = await supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("id", currentUser.user.id)
+        .single();
+
+      // 管理员可以重置非管理员用户的密码
+      if (currentProfile && currentProfile.role === 'admin') {
+        // 检查目标用户是否为管理员（管理员不能重置其他管理员的密码）
+        const { data: targetProfile } = await supabase
+          .from("user_profiles")
+          .select("role")
+          .eq("id", targetUserId)
+          .single();
+
+        return !targetProfile || targetProfile.role !== 'admin';
+      }
+
+      return false;
+    } catch (error) {
+      console.error("检查重置权限失败:", error);
+      return false;
+    }
+  };
+
+  // 直接重置密码（支持分级权限）
+  const resetPasswordDirect = async (userId: string, newPassword: string) => {
     isLoading.value = true;
     error.value = null;
 
     try {
-      // 验证邮箱格式
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!email || !emailRegex.test(email)) {
-        throw new Error("请输入有效的邮箱地址");
+      // 验证新密码强度
+      const passwordError = validatePasswordStrength(newPassword);
+      if (passwordError) {
+        throw new Error(passwordError);
       }
 
-      // 尝试通过API重置密码
-      try {
-        await apiMethods.create("/auth/reset-password", { email });
-      } catch (apiError) {
-        console.warn("API调用失败，回退到直接Supabase操作:", apiError);
-        // 回退到直接Supabase操作
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-          email,
-          {
-            redirectTo: `${window.location.origin}/reset-password`,
-          },
-        );
+      // 检查重置权限
+      const hasPermission = await checkResetPermission(userId);
+      if (!hasPermission) {
+        throw new Error("权限不足：无法重置该用户的密码");
+      }
 
-        if (resetError) {
-          throw resetError;
+      // 验证用户ID格式（UUID）
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(userId)) {
+        // 如果是数字ID，尝试查找对应的UUID
+        const { data: userData } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("username", userId)
+          .single();
+        
+        if (!userData) {
+          throw new Error(`未找到用户ID: ${userId}`);
         }
+        
+        userId = userData.id;
       }
 
-      ElMessage.success(`重置密码邮件已发送至 ${email}`);
+      // 使用Supabase Admin API直接重置密码
+      const { error: updateError } = await supabase.auth.admin.updateUserById(
+        userId,
+        { password: newPassword }
+      );
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // 记录审计日志
+      await logPasswordReset(userId);
+
+      ElMessage.success("密码已成功重置");
       return true;
-    } catch (err) {
-      handleError(err, {
-        customMessage: "重置密码失败",
-        logError: true,
-      });
-      error.value = "重置密码失败";
+    } catch (err: any) {
+      const errorMessage = err.message || "重置密码失败";
+      error.value = errorMessage;
+      ElMessage.error(errorMessage);
+      console.error("重置密码失败:", err);
       return false;
     } finally {
       isLoading.value = false;
@@ -515,6 +657,6 @@ export const useSystemStore = defineStore("system", () => {
     addUser,
     updateUserStatus,
     deleteUser,
-    resetPassword,
+    resetPasswordDirect,
   };
 });
