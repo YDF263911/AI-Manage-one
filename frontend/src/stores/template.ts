@@ -31,7 +31,7 @@ export const useTemplateStore = defineStore("template", () => {
         const filePath = `templates/${fileName}`;
 
         // 上传文件到Supabase存储桶
-        const { data, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from("template_files")
           .upload(filePath, file, {
             cacheControl: "3600",
@@ -61,12 +61,12 @@ export const useTemplateStore = defineStore("template", () => {
   // 计算属性
   const totalTemplates = computed(() => templates.value.length);
 
-  // 按分类筛选模板
+      // 按分类筛选模板
   const templatesByCategory = (category: string) => {
     if (category === "all") {
       return templates.value;
     }
-    return templates.value.filter((t) => t.category === category);
+    return templates.value.filter((template: Template) => template.category === category);
   };
 
   // 加载模板列表
@@ -85,12 +85,12 @@ export const useTemplateStore = defineStore("template", () => {
       try {
         // 优先使用API
         try {
-        const templatesData = await apiMethods.getList("/templates", {
-          ...params,
-          pageSize: params?.pageSize || 100,
-        }) as any;
-        const templatesList = Array.isArray(templatesData) ? templatesData : templatesData?.data || templatesData?.templates || [];
-        templates.value = (templatesList || []).filter(t => t && t.id);
+          const templatesData = await apiMethods.getList("/templates", {
+            ...params,
+            pageSize: params?.pageSize || 100,
+          }) as any;
+          const templatesList = Array.isArray(templatesData) ? templatesData : templatesData?.data || templatesData?.templates || [];
+          templates.value = (templatesList || []).filter(t => t && t.id);
           return;
         } catch (apiError) {
           console.log("使用API失败，尝试使用Supabase直接访问");
@@ -130,13 +130,13 @@ export const useTemplateStore = defineStore("template", () => {
           query = query.range(from, to);
         }
 
-        const { data, error: sbError } = await query;
+        const { data: templateData, error: sbError } = await query;
 
         if (sbError) {
           throw new Error(sbError.message);
         }
 
-        templates.value = (data || []).filter(t => t && t.id);
+        templates.value = (templateData || []).filter(t => t && t.id);
       } catch (err) {
         handleError(err, { customMessage: "加载模板失败" });
         error.value = "加载模板失败";
@@ -187,6 +187,13 @@ export const useTemplateStore = defineStore("template", () => {
       isLoading.value = false;
     }
   });
+
+  // 获取模板详情（别名方法）
+  const getTemplateDetail = catchAsyncError(async (templateId: string) => {
+    return await getTemplate(templateId);
+  });
+
+  // 创建模板
 
   // 创建模板
   const createTemplate = catchAsyncError(
@@ -448,6 +455,7 @@ export const useTemplateStore = defineStore("template", () => {
     // 方法
     loadTemplates,
     getTemplate,
+    getTemplateDetail,
     createTemplate,
     updateTemplate,
     deleteTemplate,

@@ -306,20 +306,10 @@ const loadContracts = async () => {
 
   try {
     // 构建查询条件，包含关联的分析数据
+    // 先获取合同列表（避免复杂的关联查询）
     let query = supabase
       .from("contracts")
-      .select(
-        `
-        *,
-        contract_analysis (
-          contract_id,
-          overall_risk_level,
-          analysis_result,
-          created_at
-        )
-      `,
-        { count: "exact" },
-      )
+      .select("*", { count: "exact" })
       .order("created_at", { ascending: false });
 
     // 添加筛选条件
@@ -350,6 +340,46 @@ const loadContracts = async () => {
 
     // 在客户端应用风险等级过滤
     let filteredData = data || [];
+    
+    // 单独获取分析数据以避免QUIC协议问题
+    try {
+      const contractIds = filteredData.map(contract => contract.id);
+      if (contractIds.length > 0) {
+        // 分批获取分析数据，避免QUIC协议超时
+        const batchSize = 5; // 每批处理5个合同
+        let allAnalysisData: any[] = [];
+        
+        for (let i = 0; i < contractIds.length; i += batchSize) {
+          const batchIds = contractIds.slice(i, i + batchSize);
+          try {
+            const { data: analysisData, error: analysisError } = await supabase
+              .from("contract_analysis")
+              .select("contract_id, overall_risk_level, created_at")
+              .in("contract_id", batchIds)
+              .limit(batchSize);
+
+            if (!analysisError && analysisData) {
+              allAnalysisData = allAnalysisData.concat(analysisData);
+            }
+          } catch (batchError) {
+            console.warn(`批量${i/batchSize + 1}获取分析数据失败:`, batchError);
+          }
+        }
+
+        // 将分析数据合并到合同数据中
+        filteredData = filteredData.map(contract => {
+          const analysis = allAnalysisData.find(a => a.contract_id === contract.id);
+          return {
+            ...contract,
+            contract_analysis: analysis ? [analysis] : []
+          };
+        });
+      }
+    } catch (analysisError) {
+      console.warn("获取分析数据失败，继续使用基本数据:", analysisError);
+      // 即使分析数据获取失败，也继续显示合同列表
+    }
+
     if (filterRisk.value) {
       filteredData = filteredData.filter((contract) => {
         const riskLevel = contract.contract_analysis?.[0]?.overall_risk_level;

@@ -232,6 +232,43 @@ router.post('/:id/generate-draft', protect, async (req, res) => {
   }
 });
 
+// 增加模板使用次数
+router.post('/:id/increment', protect, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // 先获取当前模板的使用次数
+    const templates = await DatabaseService.select('templates', { id });
+    
+    if (!templates.length) {
+      return res.status(404).json({
+        success: false,
+        message: '模板不存在',
+      });
+    }
+
+    const currentTemplate = templates[0];
+    const currentUsage = currentTemplate.usage_count || 0;
+    
+    // 更新使用次数
+    const updatedTemplate = await DatabaseService.update('templates', id, {
+      usage_count: currentUsage + 1,
+      updated_at: new Date().toISOString(),
+    });
+
+    res.json({
+      success: true,
+      message: '使用次数增加成功',
+      data: updatedTemplate,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: '增加使用次数失败',
+    });
+  }
+});
+
 // 获取模板分类
 router.get('/categories/list', protect, async (req, res) => {
   try {

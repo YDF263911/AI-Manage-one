@@ -283,18 +283,6 @@ const loadRelatedTemplates = async () => {
 
 const useTemplate = async () => {
   try {
-    // 保存模板数据到localStorage供上传页面使用
-    const templateData = {
-      id: templateId,
-      name: templateDetail.value?.name,
-      content: templateDetail.value?.content,
-      variables: templateDetail.value?.variables || [],
-      category: templateDetail.value?.category
-    };
-    
-    console.log('保存模板数据到localStorage:', templateData);
-    localStorage.setItem('selectedTemplate', JSON.stringify(templateData));
-    
     // 增加使用次数
     try {
       await templateStore.incrementUsageCount(templateId);
@@ -304,8 +292,8 @@ const useTemplate = async () => {
 
     ElMessage.success(`开始使用模板: ${templateDetail.value?.name}`);
     
-    // 跳转到合同上传页面
-    router.push('/contracts/upload');
+    // 跳转到合同编辑页面
+    router.push(`/contracts/create/${templateId}`);
   } catch (error) {
     console.error('使用模板失败:', error);
     ElMessage.error("操作失败");

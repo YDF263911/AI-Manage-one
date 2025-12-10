@@ -78,6 +78,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/views/contracts/TextExtract.vue"),
         meta: { title: "合同内容提取" },
       },
+      {
+        path: "contracts/create/:id",
+        name: "ContractCreateFromTemplate",
+        component: () => import("@/views/contracts/Edit.vue"),
+        meta: { title: "创建合同" },
+      },
 
       {
         path: "templates",
