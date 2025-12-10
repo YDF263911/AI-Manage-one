@@ -28,7 +28,6 @@
           </template>
           <el-menu-item index="/contracts">合同列表</el-menu-item>
           <el-menu-item index="/contracts/upload">上传合同</el-menu-item>
-          <el-menu-item index="/contracts/analysis">分析结果</el-menu-item>
         </el-sub-menu>
 
         <el-sub-menu index="templates">
@@ -123,13 +122,12 @@ const isCollapse = ref(false);
 // 计算当前激活的菜单项
 const activeMenu = computed(() => route.path);
 
-// 计算当前路由名称
+  // 计算当前路由名称
 const currentRouteName = computed(() => {
   const routeMap: Record<string, string> = {
     "/dashboard": "仪表板",
     "/contracts": "合同列表",
     "/contracts/upload": "上传合同",
-    "/contracts/analysis": "分析结果",
     "/templates": "模板列表",
     "/templates/create": "创建模板",
     "/risk-rules": "风险规则",
