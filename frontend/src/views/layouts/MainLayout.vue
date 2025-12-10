@@ -79,8 +79,7 @@
             </span>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="profile">个人资料</el-dropdown-item>
-                <el-dropdown-item command="settings">账户设置</el-dropdown-item>
+                <el-dropdown-item command="userSettings">用户设置</el-dropdown-item>
                 <el-dropdown-item divided command="logout"
                   >退出登录</el-dropdown-item
                 >
@@ -154,11 +153,8 @@ const toggleSidebar = () => {
 // 处理用户操作
 const handleCommand = async (command: string) => {
   switch (command) {
-    case "profile":
-      router.push("/profile");
-      break;
-    case "settings":
-      router.push("/settings");
+    case "userSettings":
+      router.push("/settings?tab=users");
       break;
     case "logout":
       await authStore.signOut();

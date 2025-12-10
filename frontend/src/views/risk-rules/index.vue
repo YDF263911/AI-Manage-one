@@ -19,14 +19,6 @@
           <el-icon><Star /></el-icon>
           添加示例规则
         </el-button>
-        <el-button @click="importRules">
-          <el-icon><Upload /></el-icon>
-          导入规则
-        </el-button>
-        <el-button @click="exportRules">
-          <el-icon><Download /></el-icon>
-          导出规则
-        </el-button>
       </div>
     </div>
 
@@ -240,8 +232,6 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import {
   Search,
   Plus,
-  Upload,
-  Download,
   Document,
   ArrowDown,
   Star,
@@ -442,13 +432,7 @@ const addDemoRules = () => {
   router.push('/risk-rules/add-demo');
 };
 
-const importRules = () => {
-  ElMessage.info("导入规则功能开发中...");
-};
 
-const exportRules = () => {
-  ElMessage.info("导出规则功能开发中...");
-};
 
 const batchEnable = async () => {
   try {

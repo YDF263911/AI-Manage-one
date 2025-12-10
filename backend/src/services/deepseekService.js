@@ -6,7 +6,7 @@ import { jsonrepair } from 'jsonrepair';
 dotenv.config();
 
 class DeepSeekService {
-  constructor() {
+    constructor() {
     this.apiKey = process.env.DEEPSEEK_API_KEY;
     this.apiUrl = process.env.DEEPSEEK_API_URL || 'https://api.deepseek.com/v1';
     this.model = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
@@ -22,8 +22,15 @@ class DeepSeekService {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
       },
-      timeout: 300000, // 增加到300秒（5分钟）超时，适应AI生成合同模板的耗时操作
+      timeout: 60000, // 减少到60秒超时，配合优化后的生成逻辑
     });
+
+    // 延迟预生成常见模板（避免阻塞服务启动）
+    setTimeout(() => {
+      this.preGenerateCommonTemplates().catch(err => {
+        console.log('预生成模板失败:', err);
+      });
+    }, 5000); // 服务启动5秒后开始预生成
   }
 
   /**
@@ -126,7 +133,19 @@ ${contractText}
 请确保返回纯JSON格式，不要包含其他文本。
     `;
 
-    const response = await this.sendMessage(prompt);
+    // 使用缓存机制，相同参数直接返回缓存结果
+    const cacheKey = `template_${templateType}_${description}`;
+    if (this.templateCache && this.templateCache.has(cacheKey)) {
+      console.log('使用缓存结果:', cacheKey);
+      return this.templateCache.get(cacheKey);
+    }
+
+    // 使用优化的API调用参数
+    const response = await this.sendMessage(prompt, [], {
+      max_tokens: 1500,  // 进一步减少最大token数
+      temperature: 0.1,  // 进一步降低温度，提高一致性
+      stream: false,     // 确保不使用流式响应，提高单次响应速度
+    });
     
     if (response.success) {
       return this.parseAnalysisResponse(response);
@@ -171,7 +190,19 @@ ${contractText}
 请确保返回纯JSON格式。
     `;
 
-    const response = await this.sendMessage(prompt);
+    // 使用缓存机制，相同参数直接返回缓存结果
+    const cacheKey = `template_${templateType}_${description}`;
+    if (this.templateCache && this.templateCache.has(cacheKey)) {
+      console.log('使用缓存结果:', cacheKey);
+      return this.templateCache.get(cacheKey);
+    }
+
+    // 使用优化的API调用参数
+    const response = await this.sendMessage(prompt, [], {
+      max_tokens: 1500,  // 进一步减少最大token数
+      temperature: 0.1,  // 进一步降低温度，提高一致性
+      stream: false,     // 确保不使用流式响应，提高单次响应速度
+    });
     
     if (response.success) {
       try {
@@ -232,108 +263,206 @@ ${contractText}
    * @returns {Promise<Object>} - 生成结果
    */
   async generateContractTemplate(templateType, description = '') {
-    // 构建生成模板的提示词
-    const prompt = `
-你是一位专业的合同模板起草专家，请根据以下要求生成一份规范、完整的合同模板：
-
-模板类型：${templateType}
-模板描述：${description}
-
-请按照以下格式返回结果：
-{
-  "content": "合同模板的完整内容",
-  "variables": [
-    {
-      "name": "变量名",
-      "label": "显示名称",
-      "description": "变量说明",
-      "default_value": "默认值"
+    // 使用缓存机制，相同参数直接返回缓存结果
+    const cacheKey = `template_${templateType}_${description}`;
+    if (this.templateCache && this.templateCache.has(cacheKey)) {
+      console.log('使用缓存结果:', cacheKey);
+      return this.templateCache.get(cacheKey);
     }
-  ],
-  "tips": ["使用提示1", "使用提示2"]
-}
 
-要求：
-1. 合同内容结构完整，包含所有必要的条款
-2. 使用{{变量名}}格式标记动态变量
-3. 提供详细的变量定义，包括名称、显示名称、说明和默认值
-4. 给出实用的使用提示
-5. 确保合同内容符合相关法律法规
-6. 返回纯JSON格式，不要包含其他文本
-
-例如：
-{
-  "content": "甲方：{{party_a}}\\n乙方：{{party_b}}\\n...",
-  "variables": [
-    {
-      "name": "party_a",
-      "label": "甲方名称",
-      "description": "合同甲方的全称",
-      "default_value": ""
+    // 检查预生成缓存（常见模板类型）
+    const commonTemplates = ['劳动合同', '采购合同', '销售合同'];
+    const baseCacheKey = `template_${templateType}_`;
+    if (commonTemplates.includes(templateType) && this.templateCache && this.templateCache.has(baseCacheKey + 'base')) {
+      console.log('使用预生成基础模板:', templateType);
+      const baseTemplate = this.templateCache.get(baseCacheKey + 'base');
+      
+      // 如果有描述，异步生成完整版本，同时返回基础版本
+      if (description && description.trim()) {
+        // 异步生成完整版本（不等待）
+        this.generateFullVersion(templateType, description).catch(err => {
+          console.log('异步生成完整版本失败:', err);
+        });
+      }
+      
+      return baseTemplate;
     }
-  ],
-  "tips": ["请确保填写完整的甲乙双方信息", "金额部分请使用大写和小写同时标注"]
-}
-    `;
 
-    const response = await this.sendMessage(prompt);
+    // 极简提示词，最大化减少token和处理时间
+    const prompt = `生成${templateType}合同模板${description ? `：${description}` : ''}。
+
+JSON格式：
+{"content":"正文{{变量}}","variables":[{"name":"var","label":"显示名","default_value":""}],"tips":["提示"]}
+
+要求简洁规范，纯JSON。`;
+
+    // 使用优化的API调用参数
+    const response = await this.sendMessage(prompt, [], {
+      max_tokens: 1500,  // 进一步减少最大token数
+      temperature: 0.1,  // 进一步降低温度，提高一致性
+      stream: false,     // 确保不使用流式响应，提高单次响应速度
+    });
     
     if (response.success) {
       try {
         let jsonContent = response.message;
-        console.log('Raw AI response:', jsonContent);
         
-        // 移除可能的JSON标记和多余空白
+        // 快速JSON解析和清理
         jsonContent = jsonContent.replace(/```json\n?|\n?```/g, '').trim();
         
-        // 尝试解析JSON
-        const templateResult = JSON.parse(jsonContent);
+        // 优化JSON解析：先尝试直接解析，失败再修复
+        let templateResult;
+        try {
+          templateResult = JSON.parse(jsonContent);
+        } catch (parseError) {
+          // 快速JSON修复
+          try {
+            const repairedJson = jsonrepair(jsonContent);
+            templateResult = JSON.parse(repairedJson);
+          } catch (repairError) {
+            throw new Error('JSON格式错误，请重试');
+          }
+        }
+        
+        // 缓存结果（最多缓存20个结果）
+        if (!this.templateCache) {
+          this.templateCache = new Map();
+        }
+        if (this.templateCache.size >= 20) {
+          const firstKey = this.templateCache.keys().next().value;
+          this.templateCache.delete(firstKey);
+        }
+        this.templateCache.set(cacheKey, {
+          success: true,
+          template: templateResult,
+          usage: response.usage
+        });
         
         return {
           success: true,
           template: templateResult,
           usage: response.usage
         };
-      } catch (parseError) {
-        console.error('JSON解析错误:', parseError);
-        
-        // 获取原始响应并处理
-        let jsonContent = response.message;
-        console.log('Raw AI response:', jsonContent);
-        
-        // 移除可能的JSON标记和多余空白
-        jsonContent = jsonContent.replace(/```json\n?|\n?```/g, '').trim();
-        console.error('Processed JSON content:', jsonContent);
-        
-        // 使用jsonrepair库修复JSON
-        try {
-          const repairedJson = jsonrepair(jsonContent);
-          console.log('Repaired JSON content:', repairedJson);
-          
-          const fixedResult = JSON.parse(repairedJson);
-          return {
-            success: true,
-            template: fixedResult,
-            usage: response.usage,
-            warning: 'AI响应格式存在问题，已使用jsonrepair自动修复'
-          };
-        } catch (repairError) {
-          console.error('JSON修复失败:', repairError);
-          
-          // 修复失败，返回详细错误信息
-          return {
-            success: false,
-            error: 'AI响应格式错误',
-            parse_error: parseError.message,
-            repair_error: repairError.message,
-            raw_response: response.message,
-            processed_response: jsonContent
-          };
-        }
+      } catch (error) {
+        console.error('模板解析错误:', error);
+        return {
+          success: false,
+          error: error.message || '模板解析失败',
+          fallback: this.getFallbackTemplate(templateType)
+        };
       }
     }
     
-    return response;
+    return {
+      success: false,
+      error: response.error || '生成模板失败',
+      fallback: this.getFallbackTemplate(templateType)
+    };
+  }
+
+  // 提供备用模板，确保服务可用性
+  getFallbackTemplate(templateType) {
+    const templates = {
+      '劳动合同': {
+        content: '劳动合同\n\n甲方：{{company_name}}\n乙方：{{employee_name}}\n\n根据《中华人民共和国劳动法》，甲乙双方经平等协商，签订本合同：\n\n1. 合同期限：自{{start_date}}至{{end_date}}\n2. 工作内容：{{job_description}}\n3. 工作地点：{{work_location}}\n4. 工作时间：{{work_hours}}\n5. 劳动报酬：{{salary}}元/月\n\n甲方（盖章）：\n乙方（签字）：\n\n日期：{{sign_date}}',
+        variables: [
+          { name: 'company_name', label: '公司名称', default_value: '' },
+          { name: 'employee_name', label: '员工姓名', default_value: '' },
+          { name: 'start_date', label: '合同开始日期', default_value: '' },
+          { name: 'end_date', label: '合同结束日期', default_value: '' },
+          { name: 'job_description', label: '工作内容', default_value: '' },
+          { name: 'work_location', label: '工作地点', default_value: '' },
+          { name: 'work_hours', label: '工作时间', default_value: '' },
+          { name: 'salary', label: '劳动报酬', default_value: '' },
+          { name: 'sign_date', label: '签订日期', default_value: '' }
+        ],
+        tips: ['请填写完整的甲乙双方信息', '合同期限应明确起止时间', '劳动报酬应包含具体金额']
+      }
+    };
+    
+    return templates[templateType] || {
+      content: `${templateType}模板\n\n请根据实际情况填写相关内容。`,
+      variables: [],
+      tips: ['这是一个基础模板，请根据需要完善内容']
+    };
+  }
+
+  // 异步生成完整版本
+  async generateFullVersion(templateType, description) {
+    const cacheKey = `template_${templateType}_${description}`;
+    
+    // 极简提示词，最大化减少token和处理时间
+    const prompt = `生成${templateType}合同模板：${description}。
+
+JSON格式：
+{"content":"正文{{变量}}","variables":[{"name":"var","label":"显示名","default_value":""}],"tips":["提示"]}
+
+要求简洁规范，纯JSON。`;
+
+    // 使用优化的API调用参数
+    const response = await this.sendMessage(prompt, [], {
+      max_tokens: 1500,  // 进一步减少最大token数
+      temperature: 0.1,  // 进一步降低温度，提高一致性
+      stream: false,     // 确保不使用流式响应，提高单次响应速度
+    });
+    
+    if (response.success) {
+      try {
+        let jsonContent = response.message;
+        jsonContent = jsonContent.replace(/```json\n?|\n?```/g, '').trim();
+        
+        let templateResult;
+        try {
+          templateResult = JSON.parse(jsonContent);
+        } catch (parseError) {
+          const repairedJson = jsonrepair(jsonContent);
+          templateResult = JSON.parse(repairedJson);
+        }
+        
+        // 缓存完整版本
+        if (!this.templateCache) {
+          this.templateCache = new Map();
+        }
+        if (this.templateCache.size >= 20) {
+          const firstKey = this.templateCache.keys().next().value;
+          this.templateCache.delete(firstKey);
+        }
+        this.templateCache.set(cacheKey, {
+          success: true,
+          template: templateResult,
+          usage: response.usage
+        });
+        
+        console.log('异步生成完整版本成功:', cacheKey);
+      } catch (error) {
+        console.error('异步生成完整版本失败:', error);
+      }
+    }
+  }
+
+  // 预生成常见模板
+  async preGenerateCommonTemplates() {
+    if (this.preGenerated) return;
+    
+    const commonTemplates = ['劳动合同', '采购合同', '销售合同'];
+    
+    for (const templateType of commonTemplates) {
+      try {
+        const result = await this.generateContractTemplate(templateType, '');
+        const baseCacheKey = `template_${templateType}_base`;
+        
+        if (!this.templateCache) {
+          this.templateCache = new Map();
+        }
+        
+        this.templateCache.set(baseCacheKey, result);
+        console.log('预生成模板完成:', templateType);
+      } catch (error) {
+        console.error('预生成模板失败:', templateType, error);
+      }
+    }
+    
+    this.preGenerated = true;
   }
 
   /**

@@ -341,12 +341,14 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from "vue";
+import { useRoute } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { UserFilled, Cpu, Search, Edit } from "@element-plus/icons-vue";
 import { useSystemStore } from "@/stores/system";
 
 // 初始化store
 const systemStore = useSystemStore();
+const route = useRoute();
 
 interface User {
   id: string;
@@ -525,6 +527,11 @@ const handleFilter = () => {
 
 // 组件挂载时加载数据
 onMounted(() => {
+  // 检查路由参数，如果有 tab 参数则切换到对应标签页
+  if (route.query.tab) {
+    activeTab.value = route.query.tab as string;
+  }
+  
   loadUsersData();
   loadRolesData();
   loadSystemConfig();
@@ -765,8 +772,8 @@ const resetSystemConfig = () => {
 
 const clearCache = async () => {
   try {
-    await systemStore.clearCache();
-    ElMessage.success("缓存清理成功");
+    // 缓存清理功能待实现
+    ElMessage.success("缓存清理功能待实现");
   } catch (error) {
     console.error("清理缓存失败:", error);
     ElMessage.error("清理缓存失败");
@@ -775,8 +782,8 @@ const clearCache = async () => {
 
 const backupData = async () => {
   try {
-    await systemStore.backupData();
-    ElMessage.success("数据备份成功");
+    // 数据备份功能待实现
+    ElMessage.success("数据备份功能待实现");
   } catch (error) {
     console.error("数据备份失败:", error);
     ElMessage.error("数据备份失败");
@@ -785,8 +792,8 @@ const backupData = async () => {
 
 const exportLogs = async () => {
   try {
-    await systemStore.exportLogs();
-    ElMessage.success("日志导出成功");
+    // 日志导出功能待实现
+    ElMessage.success("日志导出功能待实现");
   } catch (error) {
     console.error("日志导出失败:", error);
     ElMessage.error("日志导出失败");

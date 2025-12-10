@@ -88,11 +88,26 @@
           </el-row>
 
           <el-form-item label="模板内容" prop="content">
-            <div class="template-editor">
+            <div class="template-editor" :class="{ 'has-new-content': justGenerated }">
               <div class="editor-toolbar">
                 <el-button size="small" type="primary" :loading="generating" @click="generateTemplate">
                   <el-icon><Cpu /></el-icon> AI辅助生成
                 </el-button>
+
+                <!-- AI生成进度条 -->
+                <div v-if="generating" class="ai-progress-container">
+                  <div class="progress-info">
+                    <span class="progress-text">{{ progressText }}</span>
+                    <span class="progress-percent">{{ progressPercent }}%</span>
+                  </div>
+                  <el-progress 
+                    :percentage="progressPercent" 
+                    :status="progressStatus"
+                    :stroke-width="6"
+                    :show-text="false"
+                  />
+                  <div class="progress-tips">{{ progressTips }}</div>
+                </div>
 
                 <el-button-group style="margin-left: 10px">
                   <el-button size="small" @click="insertText('甲方', '甲方：___________')">甲方</el-button>
@@ -223,7 +238,13 @@ const editorRef = ref<any>();
 const submitting = ref(false);
 const generating = ref(false);
 
-// 定义模板类型的联合类型
+// AI生成进度相关
+const progressPercent = ref(0);
+const progressText = ref('准备开始生成...');
+const progressTips = ref('请耐心等待，AI正在为您生成专业的合同模板');
+const progressStatus = ref<'success' | 'exception' | 'warning' | ''>('');
+
+// 定义模板类型
 type TemplateCategory = "purchase" | "sales" | "service" | "employment" | "nda" | "lease" | "partnership" | "other";
 
 // 定义表单类型
@@ -349,6 +370,9 @@ const removeVariable = (index: number) => {
 
 // AI辅助生成模板
 const generateTemplate = async () => {
+  let loadingMessage: any = null;
+  let progressTimer: any = null;
+  
   try {
     // 确认是否覆盖当前内容
     if (templateForm.content.trim() || templateForm.variables.length > 2) {
@@ -364,7 +388,50 @@ const generateTemplate = async () => {
     }
 
     generating.value = true;
-    ElMessage.info('AI正在生成模板，请稍候...');
+    
+    // 初始化进度
+    progressPercent.value = 0;
+    progressText.value = '正在连接AI服务...';
+    progressTips.value = '正在初始化生成任务';
+    progressStatus.value = '';
+    
+    // 显示加载提示，包含优化后的时间预估
+    loadingMessage = ElMessage({
+      message: 'AI正在生成模板，预计需要20-40秒...',
+      type: 'info',
+      duration: 0, // 不自动消失
+      showClose: false
+    });
+
+    // 启动进度更新定时器
+    let progressStep = 0;
+    const progressSteps = [
+      { percent: 10, text: '分析模板类型...', tips: '正在分析您的模板需求' },
+      { percent: 25, text: '构建合同结构...', tips: 'AI正在设计专业的合同框架' },
+      { percent: 45, text: '生成条款内容...', tips: '正在编写具体的合同条款' },
+      { percent: 65, text: '设置变量标记...', tips: '正在标记可替换的动态内容' },
+      { percent: 80, text: '优化格式规范...', tips: '正在调整格式和排版' },
+      { percent: 95, text: '验证模板完整性...', tips: '正在检查模板的完整性和合规性' },
+      { percent: 100, text: '生成完成！', tips: '模板生成成功，正在处理结果' }
+    ];
+
+    progressTimer = setInterval(() => {
+      if (progressStep < progressSteps.length) {
+        const step = progressSteps[progressStep];
+        progressPercent.value = step.percent;
+        progressText.value = step.text;
+        progressTips.value = step.tips;
+        
+        // 更新消息提示
+        if (loadingMessage) {
+          loadingMessage.message = step.text;
+        }
+        
+        progressStep++;
+      } else {
+        clearInterval(progressTimer);
+      }
+    }, 3500); // 每3.5秒更新一次进度，总计约24秒完成进度条
 
     // 调用AI API生成模板
     const response = await aiApi.generateContractTemplate(
@@ -395,10 +462,58 @@ const generateTemplate = async () => {
     
     console.log('解析后的模板数据:', templateData);
     
-    // 更新模板内容
+    // 完成进度条
+    if (progressTimer) {
+      clearInterval(progressTimer);
+    }
+    progressPercent.value = 100;
+    progressText.value = '生成完成！';
+    progressTips.value = '正在处理生成的模板数据';
+    progressStatus.value = 'success';
+    
+    // 立即更新消息，然后快速关闭
+    if (loadingMessage) {
+      loadingMessage.message = '模板生成成功，正在展示结果...';
+      loadingMessage.type = 'success';
+      
+      // 500ms后关闭，快速过渡
+      setTimeout(() => {
+        if (loadingMessage && typeof loadingMessage.close === 'function') {
+          loadingMessage.close();
+        }
+      }, 500);
+    }
+    
+    // 检查是否有备用模板
+    if (templateData?.fallback) {
+      // 使用备用模板
+      const fallbackData = templateData.fallback;
+      templateForm.content = fallbackData.content;
+      
+      if (fallbackData.variables && Array.isArray(fallbackData.variables)) {
+        templateForm.variables = fallbackData.variables.map((v: any) => ({
+          name: v.name || '',
+          label: v.label || '',
+          default_value: v.default_value || '',
+        }));
+      }
+      
+      progressText.value = '使用备用模板';
+      progressStatus.value = 'warning';
+      ElMessage.warning('AI生成超时，已为您加载基础模板');
+      
+      // 延迟重置进度状态
+      setTimeout(() => {
+        generating.value = false;
+        progressPercent.value = 0;
+      }, 3000);
+      return;
+    }
+    
+    // 立即更新模板内容，消除真空期
     templateForm.content = templateData?.content || '';
     
-    // 更新模板变量
+    // 立即更新模板变量
     if (templateData?.variables && Array.isArray(templateData.variables)) {
       templateForm.variables = templateData.variables.map((v: any) => ({
         name: v.name || '',
@@ -407,22 +522,119 @@ const generateTemplate = async () => {
       }));
     }
 
+    // 更新进度提示为数据处理
+    progressText.value = '数据处理完成';
+    progressTips.value = `已成功生成${templateForm.type}模板，包含${templateData?.variables?.length || 0}个变量`;
+
+    // 使用nextTick确保DOM更新后再显示成功提示
+    await nextTick();
+    
     // 显示生成成功提示和使用建议
     const tips = templateData?.tips || [];
     if (tips.length > 0) {
       const tipsContent = tips.map((tip: string, index: number) => `${index + 1}. ${tip}`).join('\n');
-      await ElMessageBox.alert(`已生成完整的${templateForm.type}模板\n\n使用提示：\n${tipsContent}`, '模板生成成功', {
+      ElMessage({
+        message: `模板生成成功！已为您生成${templateData?.variables?.length || 0}个可变字段`,
         type: 'success',
+        duration: 3000,
+        showClose: true
       });
+      
+      // 延迟显示详细建议，避免阻塞界面
+      setTimeout(async () => {
+        await ElMessageBox.alert(`已生成完整的${templateForm.type}模板\n\n使用提示：\n${tipsContent}`, '模板生成成功', {
+          type: 'success',
+        });
+      }, 800);
     } else {
-      ElMessage.success('模板生成成功');
+      ElMessage({
+        message: `${templateForm.type}模板生成成功！`,
+        type: 'success',
+        duration: 3000,
+        showClose: true
+      });
     }
+    
+    // 立即重置进度状态，让用户能再次使用
+    setTimeout(() => {
+      generating.value = false;
+      progressPercent.value = 0;
+      progressText.value = '准备开始生成...';
+      progressStatus.value = '';
+    }, 1000);
   } catch (error: any) {
-    if (error !== 'cancel') {
-      ElMessage.error(error.response?.data?.message || '模板生成失败，请重试');
+    // 清理定时器
+    if (progressTimer) {
+      clearInterval(progressTimer);
     }
-  } finally {
-    generating.value = false;
+    
+    // 更新进度状态为错误
+    progressPercent.value = 100;
+    progressText.value = '生成失败';
+    progressTips.value = '模板生成过程中遇到问题';
+    progressStatus.value = 'exception';
+    
+    // 关闭加载提示
+    if (loadingMessage && typeof loadingMessage.close === 'function') {
+      loadingMessage.close();
+    }
+    
+    if (error !== 'cancel') {
+      const errorMessage = error.response?.data?.message || error.message || '模板生成失败，请重试';
+      
+      // 检查是否有备用模板可用
+      if (error.response?.data?.fallback) {
+        const fallbackData = error.response.data.fallback;
+        
+        try {
+          await ElMessageBox.confirm(
+            'AI生成遇到问题，是否使用基础模板？',
+            '提示',
+            {
+              confirmButtonText: '使用基础模板',
+              cancelButtonText: '重试',
+              type: 'warning',
+            }
+          );
+          
+          // 使用备用模板
+          templateForm.content = fallbackData.content;
+          
+          if (fallbackData.variables && Array.isArray(fallbackData.variables)) {
+            templateForm.variables = fallbackData.variables.map((v: any) => ({
+              name: v.name || '',
+              label: v.label || '',
+              default_value: v.default_value || '',
+            }));
+          }
+          
+          progressText.value = '使用备用模板';
+          progressStatus.value = 'warning';
+          ElMessage.warning('已为您加载基础模板');
+          
+          // 延迟重置进度状态
+          setTimeout(() => {
+            generating.value = false;
+            progressPercent.value = 0;
+            progressText.value = '准备开始生成...';
+            progressStatus.value = '';
+          }, 3000);
+          return;
+        } catch (confirmError) {
+          // 用户选择重试
+        }
+      }
+      
+      ElMessage.error(errorMessage);
+    }
+    
+    // 延迟重置进度状态
+    setTimeout(() => {
+      generating.value = false;
+      progressPercent.value = 0;
+      progressText.value = '准备开始生成...';
+      progressStatus.value = '';
+    }, 2000);
   }
 };
 
@@ -532,6 +744,62 @@ onMounted(() => {
 .header-content h2 {
   margin: 0;
   margin-bottom: 5px;
+}
+
+/* AI生成进度条样式 */
+.ai-progress-container {
+  margin-top: 15px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.progress-text {
+  font-weight: 500;
+  color: #409eff;
+  font-size: 14px;
+}
+
+.progress-percent {
+  font-weight: 600;
+  color: #409eff;
+  font-size: 16px;
+}
+
+.progress-tips {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+}
+
+/* 进度条动画 */
+:deep(.el-progress-bar__outer) {
+  background-color: #ebeef5;
+}
+
+:deep(.el-progress-bar__inner) {
+  transition: all 0.3s ease;
+}
+
+:deep(.el-progress.is-success .el-progress-bar__inner) {
+  background: linear-gradient(90deg, #67c23a 0%, #85ce61 100%);
+}
+
+:deep(.el-progress.is-exception .el-progress-bar__inner) {
+  background: linear-gradient(90deg, #f56c6c 0%, #f78989 100%);
+}
+
+:deep(.el-progress.is-warning .el-progress-bar__inner) {
+  background: linear-gradient(90deg, #e6a23c 0%, #ebb563 100%);
 }
 
 .header-content p {

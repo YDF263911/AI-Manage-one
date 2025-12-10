@@ -188,6 +188,16 @@ router.post('/generate-template', async (req, res) => {
     const result = await DeepSeekService.generateContractTemplate(templateType, description);
 
     if (!result.success) {
+      // 如果有备用模板，返回400而不是500，让前端可以选择使用
+      if (result.fallback) {
+        return res.status(400).json({
+          success: false,
+          message: 'AI生成失败，可使用备用模板',
+          error: result.error,
+          fallback: result.fallback
+        });
+      }
+      
       return res.status(500).json({
         success: false,
         message: '生成模板失败',

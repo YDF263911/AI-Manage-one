@@ -163,7 +163,7 @@ export class AIApi {
         'x-user-id': 'test-user-id-123',
         'x-request-id': `frontend_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
       },
-      timeout: 300000 // 增加到300秒（5分钟）超时
+      timeout: 60000 // 减少到60秒超时，配合后端优化
     });
   }
 }
