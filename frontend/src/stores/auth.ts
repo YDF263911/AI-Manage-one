@@ -80,25 +80,36 @@ export const useAuthStore = defineStore("auth", () => {
     },
   );
 
-  // 创建用户资料
+  // 创建用户资料（从用户元数据中获取角色和部门信息）
   const createUserProfile = catchAsyncError(
     async () => {
       if (!user.value) return;
 
+      // 从用户的元数据中获取注册时设置的信息
+      const userMeta = user.value.user_metadata || {};
+      
       const { data, error } = await supabase
         .from("user_profiles")
         .insert([
           {
             id: user.value.id,
-            username: user.value.email?.split("@")[0] || "用户",
-            role: "user",
-            department: "未设置",
+            username: userMeta.username || user.value.email?.split("@")[0] || "用户",
+            role: userMeta.role || "user",
+            department: userMeta.department || "未设置",
+            status: "active",
           },
         ])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // 如果用户资料已存在，可能是并发创建，尝试加载现有资料
+        if (error.code === '23505') { // 唯一约束冲突
+          await loadUserProfile();
+          return;
+        }
+        throw error;
+      }
       profile.value = data;
     },
     (error) => {
@@ -160,7 +171,7 @@ export const useAuthStore = defineStore("auth", () => {
         email,
         password,
         username: profileData.username || email.split("@")[0],
-        role: "user",
+        role: profileData.role || "user", // 支持传递角色参数
         department: profileData.department || "未设置",
       });
 

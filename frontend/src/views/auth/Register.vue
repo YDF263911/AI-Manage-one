@@ -60,12 +60,12 @@
             size="large"
             style="width: 100%"
           >
-            <el-option label="法务部" value="法务部" />
-            <el-option label="业务部" value="业务部" />
-            <el-option label="财务部" value="财务部" />
-            <el-option label="行政部" value="行政部" />
-            <el-option label="技术部" value="技术部" />
-            <el-option label="其他" value="其他" />
+            <el-option label="法务部" value="legal" />
+            <el-option label="业务部" value="business" />
+            <el-option label="财务部" value="finance" />
+            <el-option label="管理层（管理员权限）" value="admin" />
+            <el-option label="技术部" value="tech" />
+            <el-option label="其他" value="other" />
           </el-select>
         </el-form-item>
 
@@ -184,9 +184,23 @@ const handleRegister = async () => {
   try {
     await registerFormRef.value.validate();
 
+    // 部门到角色的映射关系（符合数据库约束）
+    const departmentRoleMap = {
+      admin: "admin",           // 管理层 → 管理员
+      legal: "legal",           // 法务部 → 法务角色
+      business: "business",     // 业务部 → 业务角色
+      finance: "finance",       // 财务部 → 财务角色
+      tech: "user",             // 技术部 → 普通用户
+      other: "user",            // 其他 → 普通用户
+    };
+
+    // 根据部门映射角色
+    const role = departmentRoleMap[registerForm.department] || "user";
+
     const profileData: Partial<UserProfile> = {
       username: registerForm.username,
       department: registerForm.department,
+      role: role,
       phone: registerForm.phone || undefined,
     };
 

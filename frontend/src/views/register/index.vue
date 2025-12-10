@@ -62,10 +62,11 @@
             style="width: 100%"
           >
             <el-option label="法务部" value="legal" />
+            <el-option label="业务部" value="business" />
             <el-option label="财务部" value="finance" />
-            <el-option label="采购部" value="purchase" />
-            <el-option label="销售部" value="sales" />
-            <el-option label="管理层" value="management" />
+            <el-option label="管理层（管理员权限）" value="admin" />
+            <el-option label="技术部" value="tech" />
+            <el-option label="其他" value="other" />
           </el-select>
         </el-form-item>
 
@@ -116,6 +117,16 @@ const registerForm = reactive({
   department: "",
 });
 
+// 部门到角色的映射关系（符合数据库约束）
+const departmentRoleMap = {
+  admin: "admin",           // 行政部 → 管理员
+  legal: "legal",           // 法务部 → 法务角色
+  business: "business",     // 业务部 → 业务角色
+  finance: "finance",       // 财务部 → 财务角色
+  tech: "user",             // 技术部 → 普通用户
+  other: "user",            // 其他 → 普通用户
+};
+
 const validatePassword = (rule: any, value: string, callback: Function) => {
   if (value === "") {
     callback(new Error("请确认密码"));
@@ -159,6 +170,9 @@ const handleRegister = async () => {
 
     loading.value = true;
 
+    // 根据部门映射角色
+    const role = departmentRoleMap[registerForm.department] || "user";
+    
     // 使用auth store进行注册
     const result = await authStore.signUp(
       registerForm.email,
@@ -166,6 +180,7 @@ const handleRegister = async () => {
       {
         username: registerForm.username,
         department: registerForm.department,
+        role: role,
       },
     );
 

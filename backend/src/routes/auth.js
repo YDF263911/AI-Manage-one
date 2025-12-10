@@ -7,7 +7,7 @@ const router = express.Router();
 // 用户注册
 router.post('/register', async (req, res) => {
   try {
-    const { email, password, username, role = 'user' } = req.body;
+    const { email, password, username, role = 'user', department = '未设置' } = req.body;
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -16,6 +16,7 @@ router.post('/register', async (req, res) => {
         data: {
           username,
           role,
+          department,
         },
       },
     });
@@ -25,6 +26,26 @@ router.post('/register', async (req, res) => {
         success: false,
         message: error.message,
       });
+    }
+
+    // 如果用户创建成功，创建用户资料
+    if (data.user) {
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .insert([
+          {
+            id: data.user.id,
+            username: username || email.split('@')[0],
+            role: role,
+            department: department,
+            status: 'active',
+          }
+        ]);
+
+      if (profileError) {
+        console.error('创建用户资料失败:', profileError);
+        // 继续返回成功，但记录错误
+      }
     }
 
     res.status(201).json({
