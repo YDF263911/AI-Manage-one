@@ -276,7 +276,7 @@
         <template #header>
           <div class="card-header">
             <span class="card-title">最近合同</span>
-            <el-button type="primary" text @click="$router.push('/contracts')">
+            <el-button type="primary" text class="white-text-button" @click="$router.push('/contracts')">
               查看全部
             </el-button>
           </div>
@@ -322,7 +322,7 @@
 
           <el-table-column label="操作" width="120">
             <template #default="{ row }">
-              <el-button link type="primary" @click="viewContract(row)">
+              <el-button link type="primary" class="white-text-button" @click="viewContract(row)">
                 查看
               </el-button>
             </template>
@@ -1086,5 +1086,34 @@ onUnmounted(() => {
       gap: 12px;
     }
   }
+}
+
+/* 白色字体按钮样式 */
+.white-text-button {
+  color: white !important;
+}
+
+/* 为文字按钮添加背景色 */
+.white-text-button.el-button--text {
+  background-color: #409eff;
+  border-color: #409eff;
+}
+
+.white-text-button.el-button--text:hover {
+  background-color: #66b1ff;
+  border-color: #66b1ff;
+}
+
+/* 为链接按钮添加背景色 */
+.white-text-button.el-button--link {
+  background-color: #409eff;
+  border-color: #409eff;
+  color: white !important;
+}
+
+.white-text-button.el-button--link:hover {
+  background-color: #66b1ff;
+  border-color: #66b1ff;
+  color: white !important;
 }
 </style>

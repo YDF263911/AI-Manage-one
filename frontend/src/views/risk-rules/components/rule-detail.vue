@@ -72,7 +72,9 @@
           <div class="code-block">
             <pre>{{
               rule.condition
-                ? JSON.stringify(JSON.parse(rule.condition), null, 2)
+                ? (typeof rule.condition === 'string' 
+                    ? JSON.stringify(JSON.parse(rule.condition), null, 2)
+                    : JSON.stringify(rule.condition, null, 2))
                 : "无"
             }}</pre>
           </div>
@@ -143,8 +145,6 @@
 
     <div class="detail-actions">
       <el-button type="primary" @click="handleEdit">编辑规则</el-button>
-      <el-button @click="handleTest">测试规则</el-button>
-      <el-button @click="handleDuplicate">复制规则</el-button>
       <el-button type="danger" @click="handleDelete">删除规则</el-button>
       <el-button @click="handleClose">关闭</el-button>
     </div>
@@ -245,7 +245,7 @@ const loadTriggerHistory = async () => {
       .select(
         `
         *,
-        contracts (name)
+        contracts (filename, contract_title)
       `,
       )
       .eq("rule_id", props.rule.id)
@@ -257,7 +257,7 @@ const loadTriggerHistory = async () => {
     triggerHistory.value =
       data?.map((item) => ({
         ...item,
-        contract_name: item.contracts?.name || "未知合同",
+        contract_name: item.contracts?.contract_title || item.contracts?.filename || "未知合同",
       })) || [];
   } catch (error: any) {
     ElMessage.error(`加载触发历史失败: ${error.message}`);
@@ -289,18 +289,27 @@ const handleTest = async () => {
 // 复制规则
 const handleDuplicate = async () => {
   try {
+    // 确保所有必填字段都有值
+    const ruleData = {
+      name: `${props.rule.name} - 副本`,
+      description: props.rule.description || '',
+      category: props.rule.category || 'custom',
+      severity: props.rule.severity || 'low',
+      pattern_type: props.rule.pattern_type || 'keyword',
+      pattern_content: props.rule.pattern_content || '',
+      threshold: props.rule.threshold || 0.8,
+      condition: props.rule.condition || null,
+      suggestion: props.rule.suggestion || '',
+      is_active: props.rule.is_active !== undefined ? props.rule.is_active : true,
+      trigger_count: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      created_by: props.rule.created_by || null,
+    };
+
     const { data, error } = await supabase
       .from("risk_rules")
-      .insert([
-        {
-          ...props.rule,
-          id: undefined,
-          name: `${props.rule.name} - 副本`,
-          trigger_count: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ])
+      .insert([ruleData])
       .select();
 
     if (error) throw error;

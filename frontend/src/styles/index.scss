@@ -1,7 +1,7 @@
 // 全局样式文件
 @use 'reset';
 @use 'variables';
-@use 'mixins';
+@use 'mixins' as *;
 
 // 全局样式
 * {
@@ -15,49 +15,277 @@ html, body {
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-color);
+  color: var(--text-primary);
 }
 
 #app {
   height: 100%;
 }
 
-// 布局样式
+// ========== 布局样式 ==========
 .layout-container {
   height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-// 通用样式类
+// ========== 通用样式类 ==========
+// 文字对齐
 .text-center { text-align: center; }
 .text-left { text-align: left; }
 .text-right { text-align: right; }
 
-.mt-10 { margin-top: 10px; }
-.mt-20 { margin-top: 20px; }
-.mb-10 { margin-bottom: 10px; }
-.mb-20 { margin-bottom: 20px; }
+// 文字颜色
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-tertiary { color: var(--text-tertiary); }
+.text-muted { color: var(--text-muted); }
 
-.p-20 { padding: 20px; }
-.p-30 { padding: 30px; }
+// 背景色
+.bg-white { background-color: var(--bg-white); }
+.bg-gray { background-color: var(--bg-gray); }
+.bg-primary { background-color: var(--primary-color); }
 
-// 自定义Element Plus样式
+// 圆角
+.rounded { border-radius: var(--border-radius-xs); }
+.rounded-sm { border-radius: var(--border-radius-sm); }
+.rounded-md { border-radius: var(--border-radius-md); }
+.rounded-lg { border-radius: var(--border-radius-lg); }
+.rounded-xl { border-radius: var(--border-radius-xl); }
+.rounded-full { border-radius: var(--border-radius-circle); }
+
+// 阴影
+.shadow-xs { box-shadow: var(--shadow-xs); }
+.shadow-sm { box-shadow: var(--shadow-sm); }
+.shadow-base { box-shadow: var(--shadow-base); }
+.shadow-md { box-shadow: var(--shadow-md); }
+.shadow-lg { box-shadow: var(--shadow-lg); }
+.shadow-xl { box-shadow: var(--shadow-xl); }
+
+// 渐变背景
+.gradient-bg-primary { background: var(--primary-gradient); }
+.gradient-bg-success { background: var(--success-gradient); }
+.gradient-bg-warning { background: var(--warning-gradient); }
+.gradient-bg-danger { background: var(--danger-gradient); }
+.gradient-bg-info { background: var(--info-gradient); }
+
+// 间距系统
+.mt-10 { margin-top: var(--spacing-sm); }
+.mt-20 { margin-top: var(--spacing-base); }
+.mb-10 { margin-bottom: var(--spacing-sm); }
+.mb-20 { margin-bottom: var(--spacing-base); }
+
+.p-20 { padding: var(--spacing-base); }
+.p-30 { padding: var(--spacing-lg); }
+
+// ========== 自定义Element Plus样式 ==========
 .el-card {
-  border-radius: 8px;
-  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  transition: all var(--transition-base) ease;
+  
+  &:hover {
+    box-shadow: var(--shadow-hover);
+    border-color: var(--primary-color);
+  }
 }
 
 .el-button {
-  border-radius: 6px;
+  border-radius: var(--border-radius-sm);
+  transition: all var(--transition-base) ease;
+  
+  &.el-button--primary {
+    background: var(--primary-gradient);
+    border: none;
+    
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: var(--shadow-button);
+    }
+  }
+  
+  &:not(.el-button--primary):hover {
+    transform: translateY(-1px);
+  }
 }
 
-// 响应式设计
+.el-input {
+  .el-input__inner {
+    border-radius: var(--border-radius-sm);
+    transition: all var(--transition-base) ease;
+    border: 1px solid var(--border-base);
+    
+    &:hover {
+      border-color: var(--border-light);
+    }
+    
+    &:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+      outline: none;
+    }
+  }
+  
+  // 错误状态
+  &.is-error .el-input__inner {
+    border-color: var(--danger-color);
+    box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.2);
+    
+    &:focus {
+      border-color: var(--danger-color);
+      box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.3);
+    }
+  }
+  
+  // 成功状态
+  &.is-success .el-input__inner {
+    border-color: var(--success-color);
+    
+    &:focus {
+      border-color: var(--success-color);
+      box-shadow: 0 0 0 2px rgba(78, 205, 196, 0.2);
+    }
+  }
+}
+
+.el-table {
+  .el-table__row {
+    transition: background-color var(--transition-fast) ease;
+    
+    &:hover {
+      background-color: var(--bg-gray);
+    }
+  }
+}
+
+.el-tabs {
+  .el-tabs__active-bar {
+    background: var(--primary-gradient);
+  }
+  
+  .el-tabs__item.is-active {
+    color: var(--primary-color);
+    font-weight: 600;
+  }
+  
+  .el-tabs__item:hover {
+    color: var(--primary-color);
+  }
+}
+
+// ========== 表单组件增强 ==========
+.el-select {
+  .el-select__wrapper {
+    border-radius: var(--border-radius-sm);
+    transition: all var(--transition-base) ease;
+    border: 1px solid var(--border-base);
+    
+    &:hover {
+      border-color: var(--border-light);
+    }
+    
+    &.is-focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+    }
+  }
+}
+
+.el-textarea {
+  .el-textarea__inner {
+    border-radius: var(--border-radius-sm);
+    transition: all var(--transition-base) ease;
+    border: 1px solid var(--border-base);
+    resize: vertical;
+    
+    &:hover {
+      border-color: var(--border-light);
+    }
+    
+    &:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+      outline: none;
+    }
+  }
+}
+
+.el-checkbox {
+  .el-checkbox__label {
+    color: var(--text-secondary);
+  }
+  
+  .el-checkbox__input.is-checked .el-checkbox__inner {
+    background: var(--primary-gradient);
+    border-color: transparent;
+  }
+  
+  .el-checkbox__input.is-checked + .el-checkbox__label {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+}
+
+.el-radio {
+  .el-radio__label {
+    color: var(--text-secondary);
+  }
+  
+  .el-radio__input.is-checked .el-radio__inner {
+    background: var(--primary-gradient);
+    border-color: transparent;
+  }
+  
+  .el-radio__input.is-checked + .el-radio__label {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+}
+
+.el-form-item {
+  .el-form-item__label {
+    color: var(--text-secondary);
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+  }
+  
+  &.is-error {
+    .el-form-item__label {
+      color: var(--danger-color);
+    }
+    
+    .el-form-item__error {
+      color: var(--danger-color);
+      font-size: var(--font-size-extra-small);
+      margin-top: var(--spacing-xs);
+    }
+  }
+  
+  &.is-success {
+    .el-form-item__label {
+      color: var(--success-color);
+    }
+  }
+}
+
+// ========== 现代卡片组件 ==========
+// 混合宏已在_mixins.scss中定义，可直接在组件中使用
+
+// ========== 响应式设计 ==========
 @media (max-width: 768px) {
   .el-dialog {
     width: 90% !important;
+    border-radius: var(--border-radius-lg);
   }
   
   .el-message {
     min-width: 90% !important;
+    border-radius: var(--border-radius-md);
+  }
+  
+  .el-card {
+    border-radius: var(--border-radius-sm);
   }
 }

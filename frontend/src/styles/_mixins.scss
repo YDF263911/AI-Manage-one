@@ -1,4 +1,4 @@
-// 混合宏
+// ========== 布局混合宏 ==========
 @mixin flex-center {
   display: flex;
   justify-content: center;
@@ -16,6 +16,14 @@
   flex-direction: column;
 }
 
+@mixin flex-center-column {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+// ========== 文字处理 ==========
 @mixin text-ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -29,21 +37,78 @@
   overflow: hidden;
 }
 
-@mixin card-shadow {
-  box-shadow: var(--shadow-regular);
-  border-radius: var(--border-radius-base);
-}
-
-@mixin button-hover {
-  transition: all 0.3s ease;
+// ========== 现代卡片样式 ==========
+@mixin modern-card {
+  background: var(--bg-white);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-light);
+  transition: all var(--transition-base) ease;
   
   &:hover {
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-light);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--primary-color);
   }
 }
 
-// 响应式断点
+@mixin shadow-level($level: base) {
+  @if $level == xs {
+    box-shadow: var(--shadow-xs);
+  } @else if $level == sm {
+    box-shadow: var(--shadow-sm);
+  } @else if $level == base {
+    box-shadow: var(--shadow-base);
+  } @else if $level == md {
+    box-shadow: var(--shadow-md);
+  } @else if $level == lg {
+    box-shadow: var(--shadow-lg);
+  } @else if $level == xl {
+    box-shadow: var(--shadow-xl);
+  }
+}
+
+// ========== 渐变背景 ==========
+@mixin gradient-bg($type: primary) {
+  @if $type == primary {
+    background: var(--primary-gradient);
+  } @else if $type == success {
+    background: var(--success-gradient);
+  } @else if $type == warning {
+    background: var(--warning-gradient);
+  } @else if $type == danger {
+    background: var(--danger-gradient);
+  } @else if $type == info {
+    background: var(--info-gradient);
+  }
+}
+
+// ========== 按钮样式 ==========
+@mixin modern-button {
+  border-radius: var(--border-radius-sm);
+  transition: all var(--transition-base) ease;
+  border: none;
+  cursor: pointer;
+  
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-button);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+@mixin button-hover {
+  transition: all var(--transition-base) ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-button);
+  }
+}
+
+// ========== 响应式断点 ==========
 @mixin respond-to($breakpoint) {
   @if $breakpoint == 'xs' {
     @media (max-width: 575px) { @content; }
@@ -60,4 +125,17 @@
   @if $breakpoint == 'xl' {
     @media (min-width: 1200px) { @content; }
   }
+}
+
+// ========== 动效 ==========
+@mixin transition-all {
+  transition: all var(--transition-base) ease;
+}
+
+@mixin transition-fast {
+  transition: all var(--transition-fast) ease;
+}
+
+@mixin transition-slow {
+  transition: all var(--transition-slow) ease;
 }

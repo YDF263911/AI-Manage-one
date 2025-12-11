@@ -133,8 +133,8 @@ ${contractText}
 请确保返回纯JSON格式，不要包含其他文本。
     `;
 
-    // 使用缓存机制，相同参数直接返回缓存结果
-    const cacheKey = `template_${templateType}_${description}`;
+    // 使用缓存机制，相同合同文本直接返回缓存结果
+    const cacheKey = `contract_${Buffer.from(contractText).toString('base64').substring(0, 50)}`;
     if (this.templateCache && this.templateCache.has(cacheKey)) {
       console.log('使用缓存结果:', cacheKey);
       return this.templateCache.get(cacheKey);
@@ -190,8 +190,8 @@ ${contractText}
 请确保返回纯JSON格式。
     `;
 
-    // 使用缓存机制，相同参数直接返回缓存结果
-    const cacheKey = `template_${templateType}_${description}`;
+    // 使用缓存机制，相同合同文本直接返回缓存结果
+    const cacheKey = `contract_${Buffer.from(contractText).toString('base64').substring(0, 50)}`;
     if (this.templateCache && this.templateCache.has(cacheKey)) {
       console.log('使用缓存结果:', cacheKey);
       return this.templateCache.get(cacheKey);
@@ -263,7 +263,7 @@ ${contractText}
    * @returns {Promise<Object>} - 生成结果
    */
   async generateContractTemplate(templateType, description = '') {
-    // 使用缓存机制，相同参数直接返回缓存结果
+    // 使用缓存机制，相同模板类型和描述直接返回缓存结果
     const cacheKey = `template_${templateType}_${description}`;
     if (this.templateCache && this.templateCache.has(cacheKey)) {
       console.log('使用缓存结果:', cacheKey);

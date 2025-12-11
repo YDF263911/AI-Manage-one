@@ -88,7 +88,7 @@
           </el-row>
 
           <el-form-item label="模板内容" prop="content">
-            <div class="template-editor" :class="{ 'has-new-content': justGenerated }">
+            <div class="template-editor">
               <div class="editor-toolbar">
                 <el-button size="small" type="primary" :loading="generating" @click="generateTemplate">
                   <el-icon><Cpu /></el-icon> AI辅助生成
