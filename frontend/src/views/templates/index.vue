@@ -95,11 +95,15 @@
                   <el-icon><Document /></el-icon>
                   <span>{{ template.name }}</span>
                 </div>
-                <el-tag
-                  :type="template.status === 'active' ? 'success' : 'info'"
-                >
-                  {{ template.status === "active" ? "启用" : "禁用" }}
-                </el-tag>
+                <el-button
+                  size="small"
+                  type="info"
+                  :icon="Delete"
+                  @click.stop="deleteTemplate(template)"
+                  circle
+                  title="删除模板"
+                  class="delete-button"
+                />
               </div>
             </template>
 
@@ -134,36 +138,7 @@
               </div>
             </div>
 
-            <template #footer>
-              <div class="card-footer" @click.stop>
-                <div class="template-status">
-                  <!-- 简化版本用于测试 -->
-                  <span>状态: {{ template.status === 'active' ? '启用' : '禁用' }}</span>
-                  <el-switch 
-                    :model-value="template.status === 'active'"
-                    @change="toggleTemplateStatus(template)"
-                    size="small"
-                  />
-                </div>
-                
-                <div class="template-actions">
-                  <el-button size="small" @click="viewTemplate(template)">查看</el-button>
-                  <el-button size="small" type="primary" @click="useTemplate(template)">使用</el-button>
-                  <el-dropdown @command="handleCommand($event, template)">
-                    <el-button size="small">
-                      更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
-                    </el-button>
-                    <template #dropdown>
-                      <el-dropdown-menu>
-                        <el-dropdown-item command="edit">编辑</el-dropdown-item>
-                        <el-dropdown-item command="download">下载</el-dropdown-item>
-                        <el-dropdown-item command="delete">删除</el-dropdown-item>
-                      </el-dropdown-menu>
-                    </template>
-                  </el-dropdown>
-                </div>
-              </div>
-            </template>
+
           </el-card>
         </el-col>
       </el-row>
@@ -205,6 +180,7 @@ import {
   Clock,
   TrendCharts,
   ArrowDown,
+  Delete,
 } from "@element-plus/icons-vue";
 import { useAuthStore } from "@/stores/auth";
 import { useTemplateStore } from "@/stores/template";
@@ -387,6 +363,12 @@ const toggleTemplateStatus = async (template: any) => {
 
 const deleteTemplate = async (template: any) => {
   try {
+    // 权限检查
+    if (!hasPermission(template, "delete")) {
+      ElMessage.warning(getPermissionMessage(template, "delete"));
+      return;
+    }
+
     await ElMessageBox.confirm(
       `确定要删除模板「${template.name}」吗？此操作不可恢复。`,
       "删除确认",
@@ -484,7 +466,8 @@ onMounted(() => {
 
 .template-card {
   margin-bottom: 20px;
-  height: 280px;
+  height: auto;
+  min-height: 200px;
   transition: all 0.3s ease;
   cursor: pointer;
 }
@@ -512,7 +495,7 @@ onMounted(() => {
 }
 
 .template-content {
-  height: 160px;
+  padding: 10px 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -552,27 +535,7 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-.card-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 
-.template-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.status-text {
-  font-size: 12px;
-  color: #909399;
-}
-
-.template-actions {
-  display: flex;
-  gap: 8px;
-}
 
 .empty-state {
   padding: 60px 0;
@@ -589,5 +552,18 @@ onMounted(() => {
 
 :deep(.el-tabs__item) {
   font-weight: 500;
+}
+
+.delete-button {
+  color: #909399;
+  border-color: #e4e7ed;
+  background-color: #f5f7fa;
+  transition: all 0.3s ease;
+}
+
+.delete-button:hover {
+  color: #f56c6c;
+  border-color: #f56c6c;
+  background-color: #fef0f0;
 }
 </style>

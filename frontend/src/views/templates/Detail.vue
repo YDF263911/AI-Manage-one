@@ -208,6 +208,11 @@ const templateDetail = computed(() => templateStore.currentTemplate);
 
 const canEdit = computed(() => {
   if (!templateDetail.value || !authStore.user) return false;
+  
+  // 管理员可以删除任何模板
+  if (authStore.user.role === 'admin') return true;
+  
+  // 模板创建者可以删除自己的模板
   return templateDetail.value.created_by === authStore.user.id;
 });
 
@@ -305,6 +310,21 @@ const useTemplate = async () => {
 
 const deleteTemplate = async () => {
   try {
+    // 添加权限检查和调试信息
+    console.log('删除模板权限检查:', {
+      hasTemplate: !!templateDetail.value,
+      hasUser: !!authStore.user,
+      templateCreatedBy: templateDetail.value?.created_by,
+      currentUserId: authStore.user?.id,
+      currentUserRole: authStore.user?.role,
+      canEdit: canEdit.value
+    });
+
+    if (!canEdit.value) {
+      ElMessage.warning("您没有权限删除此模板");
+      return;
+    }
+
     await ElMessageBox.confirm("确定要删除此模板吗？此操作不可恢复。", "警告", {
       confirmButtonText: "确定",
       cancelButtonText: "取消",
